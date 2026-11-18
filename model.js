@@ -247,7 +247,36 @@
     project.stages[stage] = project.stages[stage] ? '' : date;
     return project.stages[stage];
   }
+  // 所有案件進度頁：每個案件的流程階段、各步驟完成數與整體百分比
+  function projectSummary(entry, date = today()) {
+    const p = entry.project, vendors = entry.vendors, quoting = vendors.filter(v => !v.noQuote);
+    const groups = groupVendors(vendors);
+    const stages = { ...Object.fromEntries(projectStages.map(s => [s.key, ''])), ...(p.stages || {}) };
+    const prepCount = key => groups.filter(g => categoryPrep(p, g.key)[key]).length;
+    const stepCount = key => quoting.filter(v => v.dates[key]).length;
+    const counts = { drawings: prepCount('drawings'), specs: prepCount('specs') };
+    for (const step of steps) counts[step.key] = stepCount(step.key);
+    const prepReady = groups.every(g => prepDone(p, g.key));
+    const completed = quoting.filter(complete).length;
+    const total = projectStages.length + groups.length * categorySteps.length + quoting.length * steps.length;
+    const done = projectStages.filter(s => stages[s.key]).length + counts.drawings + counts.specs + steps.reduce((t, s) => t + counts[s.key], 0);
+    let stage;
+    if (!stages.collected) stage = { key: 'collected', label: '待領標', tone: 'waiting' };
+    else if (!stages.split) stage = { key: 'split', label: '待拆標單', tone: 'waiting' };
+    else if (!quoting.length) stage = { key: 'inquiry', label: '待新增詢價廠商', tone: 'neutral' };
+    else if (completed === quoting.length) stage = { key: 'done', label: '詢價完成', tone: 'finished' };
+    else if (!prepReady) stage = { key: 'inquiry', label: '詢價：拆圖說／規範中', tone: 'neutral' };
+    else if (counts.called < quoting.length) stage = { key: 'inquiry', label: '詢價：寄信與電話確認中', tone: 'neutral' };
+    else if (counts.received < quoting.length) stage = { key: 'inquiry', label: '等待廠商報價', tone: 'neutral' };
+    else stage = { key: 'inquiry', label: '待回填報價表', tone: 'waiting' };
+    return {
+      id: entry.id, name: p.name, deadline: p.deadline, deadlineInfo: deadlineInfo(p.deadline, date), stages, stage,
+      groups: groups.length, vendors: vendors.length, quoting: quoting.length, completed, counts,
+      overdue: quoting.filter(v => overdue(v, p.days, date)).length,
+      percent: total ? Math.round(done / total * 100) : 0
+    };
+  }
   const duplicateVendor = (project, name, exceptId = '') => project.vendors.find(v => v.id !== exceptId && vendorNameKey(v.name) === vendorNameKey(name));
-  root.QuoteTracker = { steps, today, validDate, addDays, due, complete, overdue, progress, pendingFill, attention, blankDates, normalizeCategory, categoryName, categoryKey, categoryTone, groupVendors, projectTitle, validateState, workspaceFromLegacy, emptyWorkspace, validateWorkspace, currentProject, selectProject, addProject, completeProject, undoProjectCompletion, vendorNameKey, vendorProfile, buildVendorBook, rememberVendor, searchVendorBook, findRememberedVendor, removeProject, restoreProject, copyVendorList, daysBetween, deadlineInfo, duplicateVendor, projectStages, categorySteps, categoryPrep, prepDone, toggleCategoryStep, toggleStage };
+  root.QuoteTracker = { steps, today, validDate, addDays, due, complete, overdue, progress, pendingFill, attention, blankDates, normalizeCategory, categoryName, categoryKey, categoryTone, groupVendors, projectTitle, validateState, workspaceFromLegacy, emptyWorkspace, validateWorkspace, currentProject, selectProject, addProject, completeProject, undoProjectCompletion, vendorNameKey, vendorProfile, buildVendorBook, rememberVendor, searchVendorBook, findRememberedVendor, removeProject, restoreProject, copyVendorList, daysBetween, deadlineInfo, duplicateVendor, projectStages, categorySteps, categoryPrep, prepDone, toggleCategoryStep, toggleStage, projectSummary };
   if (typeof module !== 'undefined') module.exports = root.QuoteTracker;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

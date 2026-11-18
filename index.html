@@ -8,9 +8,9 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=11">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" defer></script>
-  <script src="model.js?v=10" defer></script><script src="config.js?v=10" defer></script><script src="sync.js?v=10" defer></script><script src="app.js?v=10" defer></script>
+  <script src="model.js?v=11" defer></script><script src="config.js?v=11" defer></script><script src="sync.js?v=11" defer></script><script src="app.js?v=11" defer></script>
 </head>
 <body>
 <svg aria-hidden="true" class="sprite" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -26,12 +26,14 @@
 <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
 <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v6m4-6v6"/></symbol>
 <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/></symbol>
 <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l5-1L21 7l-5-5L4 14v6Z"/></symbol>
 </defs></svg>
 <aside class="sidebar">
   <a class="brand" href="./" aria-label="詢價確認表首頁"><span class="brand-icon"><svg><use href="#i-check"/></svg></span><span>詢價確認表<small>BID PREPARATION</small></span></a>
   <div class="side-caption">工作空間</div>
   <nav aria-label="檢視篩選">
+    <button class="nav-item" data-view="cases"><svg><use href="#i-layers"/></svg>所有案件進度<span id="nav-cases">0</span></button>
     <button class="nav-item active" data-filter="all"><svg><use href="#i-grid"/></svg>詢價總覽<span id="nav-total">0</span></button>
     <button class="nav-item" data-filter="attention"><svg><use href="#i-clock"/></svg>待處理<span id="nav-attention">0</span></button>
     <button class="nav-item" data-filter="complete"><svg><use href="#i-check"/></svg>已完成<span id="nav-complete">0</span></button>
@@ -40,16 +42,17 @@
   <div class="storage-note"><span id="save-dot" class="small-dot"></span><span id="save-status" role="status">此瀏覽器自動儲存</span><p>資料保存在目前的裝置與瀏覽器，<br>建議定期匯出備份。</p></div>
 </aside>
 <div class="workspace">
-<header class="topbar"><div class="breadcrumb">投標準備 <span>/</span> 詢價總覽</div><div class="topbar-right"><button type="button" id="cloud-status" class="cloud-pill local" hidden><span class="cloud-dot"></span><span id="cloud-status-text">登入以跨裝置同步</span></button><div class="today"><svg><use href="#i-clock"/></svg><span id="today"></span></div></div></header>
+<header class="topbar"><div class="breadcrumb">投標準備 <span>/</span> <b id="breadcrumb-current">詢價總覽</b></div><div class="topbar-right"><button type="button" id="cloud-status" class="cloud-pill local" hidden><span class="cloud-dot"></span><span id="cloud-status-text">登入以跨裝置同步</span></button><div class="today"><svg><use href="#i-clock"/></svg><span id="today"></span></div></div></header>
 <main>
   <div id="storage-warning" class="warning hidden" role="alert"></div>
   <div id="backup-reminder" class="backup-reminder hidden" role="status"><svg aria-hidden="true"><use href="#i-download"/></svg><p id="backup-reminder-text">資料只存在這個瀏覽器，建議下載備份。</p><div><button type="button" class="btn primary" id="backup-now">立即下載備份</button><button type="button" class="link-btn" id="backup-snooze">今天不再提醒</button></div></div>
+  <section id="cases-overview" class="cases-overview" aria-labelledby="cases-title"><div class="cases-head"><div><div class="eyebrow">ALL PROJECTS</div><h1 id="cases-title">所有案件進度</h1><p>依投標截止日排序（快截止的在前），點任一案件即可進入勾選。</p></div><div class="heading-actions"><button type="button" class="btn secondary" id="cases-back"><svg><use href="#i-grid"/></svg>回到目前案件</button><button type="button" class="btn primary" id="cases-add-project"><svg><use href="#i-plus"/></svg>新增案件</button></div></div><div id="cases-stats" class="cases-stats"></div><div id="cases-list" class="cases-list"></div></section>
   <section class="page-heading"><div><div class="eyebrow">VENDOR CHECKLIST</div><h1 class="editable-heading"><input type="text" id="page-title" value="詢價確認表" maxlength="100" autocomplete="off" aria-label="大標題名稱，可直接修改並自動儲存"><svg class="title-edit-icon" aria-hidden="true"><use href="#i-edit"/></svg></h1><span class="title-edit-hint">點選大標題即可修改，自動儲存。</span><p>從寄出詢價到報價回填，每一步都確認到位。</p></div><div class="heading-actions"><div class="export-wrap"><button id="export-toggle" class="btn secondary" aria-expanded="false" aria-controls="export-menu"><svg><use href="#i-download"/></svg>匯出與備份</button><div id="export-menu" class="export-menu hidden"><button id="export-csv">匯出目前案件 CSV</button><button id="backup">下載案件與廠商完整備份</button><button id="import">匯入案件備份</button><button id="print-list">列印目前清單</button></div></div><button class="btn primary add-vendor"><svg><use href="#i-plus"/></svg>新增廠商</button></div></section>
   <section class="project-switcher" aria-label="選擇與新增案件">
     <div class="switcher-icon"><svg><use href="#i-file"/></svg></div>
     <label class="project-selector-label" for="project-select"><span>目前案件 <small id="project-count">共 1 個案件</small></span><select id="project-select" aria-label="切換詢價案件"></select></label>
     <p class="switcher-hint">各案件的廠商、分類與進度<br>分別儲存，切換即時查看。</p>
-    <div class="switcher-actions"><button type="button" class="btn secondary" id="add-project"><svg><use href="#i-plus"/></svg>新增案件</button><button type="button" class="btn secondary icon-btn" id="delete-project" aria-label="刪除目前案件" title="刪除目前案件"><svg><use href="#i-trash"/></svg></button></div>
+    <div class="switcher-actions"><button type="button" class="btn secondary" id="show-cases"><svg><use href="#i-layers"/></svg>所有案件進度</button><button type="button" class="btn secondary" id="add-project"><svg><use href="#i-plus"/></svg>新增案件</button><button type="button" class="btn secondary icon-btn" id="delete-project" aria-label="刪除目前案件" title="刪除目前案件"><svg><use href="#i-trash"/></svg></button></div>
   </section>
   <section class="project-card" aria-label="標案設定"><div class="project-symbol"><svg><use href="#i-file"/></svg></div><label class="project-name">標案名稱<input id="project-name" maxlength="160" placeholder="輸入這次的標案名稱" autocomplete="off"></label><label class="project-deadline">投標截止日<input type="date" id="project-deadline"><span id="deadline-badge" class="deadline-badge hidden"></span></label><label class="days-setting">追蹤期限<span><input type="number" id="follow-days" min="1" max="30" value="3" aria-label="寄信後幾個日曆天內追蹤"> 個日曆天</span></label></section>
   <section class="stage-track" aria-label="投標流程進度"><div class="stage-track-heading"><span class="eyebrow">BID WORKFLOW</span><span>投標流程：點一下即勾選完成，再點一次取消</span></div><div id="stage-track" class="stage-cards"></div></section>

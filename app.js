@@ -69,7 +69,43 @@
     $('#backup-reminder').classList.toggle('hidden', !show);
     if (show) $('#backup-reminder-text').textContent = since === null ? `目前有 ${vendors} 間廠商的進度只存在這個瀏覽器，清除瀏覽資料就會遺失，建議下載一份備份。` : `距上次備份已 ${since} 天，建議再下載一份最新備份。`;
   }
-  function setFilter(value) { filter = value; collapsedGroups.clear(); render(); }
+  function setFilter(value) { filter = value; collapsedGroups.clear(); if (view !== 'case') return setView('case'); render(); }
+  // 兩種畫面：'case' 目前案件的廠商勾選表；'cases' 所有案件進度總覽（網址加 #cases 可直接開啟）
+  let view = location.hash === '#cases' ? 'cases' : 'case';
+  function setView(next) {
+    view = next;
+    try { history.replaceState(null, '', next === 'cases' ? '#cases' : location.pathname + location.search); } catch (error) { /* 略過 */ }
+    render(); window.scrollTo({ top: 0 });
+  }
+  const ovDate = date => date ? date.slice(5).replace('-', '/') : '—';
+  function renderOverview() {
+    const date = M.today();
+    const rank = s => s.deadlineInfo ? (s.deadlineInfo.days >= 0 ? s.deadlineInfo.days : 100000 - s.deadlineInfo.days) : 50000;
+    const summaries = workspace.projects.map(entry => M.projectSummary(entry, date)).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'zh-TW'));
+    const active = summaries.filter(s => s.stage.key !== 'done' && !(s.deadlineInfo && s.deadlineInfo.days < 0));
+    const soon = summaries.filter(s => s.deadlineInfo && s.deadlineInfo.days >= 0 && s.deadlineInfo.days <= 7).length;
+    const overdueVendors = summaries.reduce((t, s) => t + s.overdue, 0);
+    const stat = (label, value, note, tone = '') => `<div class="cases-stat ${tone}"><span>${label}</span><strong>${value}</strong><small>${note}</small></div>`;
+    $('#cases-stats').innerHTML = stat('全部案件', summaries.length, `進行中 ${active.length} 件`) + stat('7 天內截止', soon, '依投標截止日計算', soon ? 'waiting' : '') + stat('逾期未回覆廠商', overdueVendors, '超過追蹤期限仍未收到報價', overdueVendors ? 'overdue' : '') + stat('詢價完成', summaries.filter(s => s.stage.key === 'done').length, '所有可報價廠商五步驟完成', 'finished');
+    const pill = (label, done, total) => `<li class="${total && done === total ? 'done' : ''} ${!total ? 'empty' : ''}"><span>${label}</span><b>${total ? `${done}/${total}` : '—'}</b></li>`;
+    $('#cases-list').innerHTML = summaries.map((s, index) => {
+      const entry = workspace.projects.find(p => p.id === s.id), label = projectLabel(entry, workspace.projects.indexOf(entry));
+      const dot = (on, text, current) => `<span class="mini-step ${on ? 'on' : ''} ${current ? 'current' : ''}"><i aria-hidden="true">${on ? '✓' : ''}</i><em>${text}</em><span class="sr-only">${on ? '已完成' : current ? '進行中' : '未開始'}</span></span>`;
+      const inquiryOn = s.stage.key === 'done';
+      return `<article class="case-row ${s.id === workspace.activeProjectId ? 'is-current' : ''}" data-open-project="${esc(s.id)}">
+        <div class="case-main">
+          <div class="case-title"><strong>${esc(label)}</strong>${s.id === workspace.activeProjectId ? '<span class="case-tag">目前案件</span>' : ''}</div>
+          <div class="case-meta"><span>領標 ${ovDate(s.stages.collected)}</span><span>截止 ${ovDate(s.deadline)}</span>${s.deadlineInfo ? `<span class="deadline-badge ${s.deadlineInfo.tone}">${s.deadlineInfo.label}</span>` : ''}</div>
+          <div class="mini-steps">${dot(s.stages.collected, '領標', s.stage.key === 'collected')}${dot(s.stages.split, '拆標單', s.stage.key === 'split')}${dot(inquiryOn, '詢價', !inquiryOn && s.stage.key === 'inquiry')}</div>
+        </div>
+        <div class="case-detail">
+          <div class="case-status"><span class="badge ${s.stage.tone}">${s.stage.label}</span>${s.overdue ? `<span class="badge overdue">${s.overdue} 間逾期未回覆</span>` : ''}<span class="case-vendors">${s.groups} 個分類 · ${s.vendors} 間廠商</span></div>
+          <ul class="case-counts">${pill('拆圖說', s.counts.drawings, s.groups)}${pill('拆規範', s.counts.specs, s.groups)}${pill('寄信', s.counts.sent, s.quoting)}${pill('電話確認', s.counts.called, s.quoting)}${pill('收到報價', s.counts.received, s.quoting)}${pill('回填', s.counts.filled, s.quoting)}</ul>
+        </div>
+        <div class="case-progress"><div class="case-percent"><strong>${s.percent}</strong>%</div><div class="case-bar" role="progressbar" aria-valuenow="${s.percent}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(label)} 整體進度"><i style="width:${s.percent}%"></i></div><button type="button" class="btn secondary case-open" data-open-project="${esc(s.id)}">進入案件<svg><use href="#i-arrow"/></svg></button></div>
+      </article>`;
+    }).join('');
+  }
   function resetView() {
     filter = 'all'; query = ''; categoryFilter = null; collapsedGroups.clear(); $('#search').value = '';
   }
@@ -149,6 +185,11 @@
     return `<tr data-vendor="${esc(v.id)}"><td class="vendor-cell"><span class="vendor-name">${esc(v.name)}</span><span class="vendor-category">${esc(M.categoryName(v))}</span>${contactLine(v)}${v.note ? `<span class="vendor-note">${esc(v.note)}</span>` : ''}</td>${cells}<td><span class="badge ${status.tone}">${status.label}</span>${due && !v.noQuote && !M.complete(v) ? `<span class="due ${late ? 'overdue' : ''}">追蹤期限 ${esc(due.slice(5).replace('-', '/'))}${late ? '・逾期' : ''}</span>` : ''}</td><td><button class="row-edit" data-edit="${esc(v.id)}" aria-label="編輯 ${esc(v.name)}"><svg><use href="#i-edit"/></svg></button></td></tr>`;
   }
   function render() {
+    document.body.classList.toggle('view-cases', view === 'cases');
+    $('#breadcrumb-current').textContent = view === 'cases' ? '所有案件進度' : '詢價總覽';
+    $$('[data-view="cases"]').forEach(button => { button.classList.toggle('active', view === 'cases'); button.setAttribute('aria-pressed', String(view === 'cases')); });
+    $('#nav-cases').textContent = workspace.projects.length;
+    if (view === 'cases') renderOverview();
     renderProjectSelector();
     const vs = state.vendors;
     const pending = vs.filter(vendor => !vendor.noQuote && !M.complete(vendor)).length;
@@ -166,7 +207,7 @@
     $('#nav-total').textContent = counts.total; $('#nav-attention').textContent = counts.attention; $('#nav-complete').textContent = counts.complete; $('#tab-total').textContent = counts.total;
     const overdue = vs.filter(v => M.overdue(v, state.project.days)).length;
     $('#attention-caption').textContent = overdue ? `其中 ${overdue} 間逾期尚未回覆` : '確認收信與追蹤進度';
-    $$('[data-filter]').forEach(button => { const active = button.dataset.filter === filter; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
+    $$('[data-filter]').forEach(button => { const active = view === 'case' && button.dataset.filter === filter; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
     const visible = vs.filter(matches);
     const visibleGroups = M.groupVendors(visible);
     $('#vendor-rows').innerHTML = visibleGroups.map(groupRows).join('');
@@ -263,7 +304,8 @@
       state = M.addProject(workspace, { name, collected: String(data.get('collected') || ''), deadline: String(data.get('deadline') || ''), days: Number(data.get('days')) }, uid());
       const copied = data.get('copyVendors') === 'on' ? M.copyVendorList(source, uid) : [];
       state.vendors = copied;
-      resetView(); syncProjectInputs(); const stored = save(); render(); projectDialog.close();
+      resetView(); syncProjectInputs(); const stored = save(); projectDialog.close();
+      if (view === 'cases') setView('case'); else render();
       toast(stored ? (copied.length ? `已新增「${state.project.name}」並帶入 ${copied.length} 間廠商` : `已新增「${state.project.name}」，可開始加入廠商`) : '案件已新增，請下載完整備份以保留');
     } catch (error) { toast(error.message); }
   });
@@ -296,6 +338,19 @@
     if (target) target.focus({ preventScroll: true });
     if (!stored) toast('已更新，請下載備份以保留變更');
   });
+  $$('[data-view="cases"]').forEach(button => button.addEventListener('click', () => setView('cases')));
+  $('#show-cases').addEventListener('click', () => setView('cases'));
+  $('#cases-back').addEventListener('click', () => setView('case'));
+  $('#cases-add-project').addEventListener('click', () => $('#add-project').click());
+  $('#cases-list').addEventListener('click', event => {
+    const target = event.target.closest('[data-open-project]');
+    if (!target || event.target.closest('a')) return;
+    const id = target.dataset.openProject;
+    if (id !== workspace.activeProjectId) { state = M.selectProject(workspace, id); resetView(); syncProjectInputs(); save(); }
+    setView('case');
+    toast(`已開啟「${state.project.name || '未命名案件'}」`);
+  });
+  window.addEventListener('hashchange', () => { const next = location.hash === '#cases' ? 'cases' : 'case'; if (next !== view) { view = next; render(); } });
   $('#stage-track').addEventListener('click', event => {
     const card = event.target.closest('[data-stage]');
     if (!card) return;
