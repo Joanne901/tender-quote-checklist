@@ -102,7 +102,7 @@
           <div class="case-status"><span class="badge ${s.stage.tone}">${s.stage.label}</span>${s.overdue ? `<span class="badge overdue">${s.overdue} 間逾期未回覆</span>` : ''}<span class="case-vendors">${s.groups} 個分類 · ${s.vendors} 間廠商</span></div>
           <ul class="case-counts">${pill('拆圖說', s.counts.drawings, s.groups)}${pill('拆規範', s.counts.specs, s.groups)}${pill('寄信', s.counts.sent, s.quoting)}${pill('電話確認', s.counts.called, s.quoting)}${pill('收到報價', s.counts.received, s.quoting)}${pill('回填', s.counts.filled, s.quoting)}</ul>
         </div>
-        <div class="case-progress"><div class="case-percent"><strong>${s.percent}</strong>%</div><div class="case-bar" role="progressbar" aria-valuenow="${s.percent}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(label)} 整體進度"><i style="width:${s.percent}%"></i></div><button type="button" class="btn secondary case-open" data-open-project="${esc(s.id)}">進入案件<svg><use href="#i-arrow"/></svg></button></div>
+        <div class="case-progress"><div class="case-percent"><strong>${s.percent}</strong>%</div><div class="case-bar" role="progressbar" aria-valuenow="${s.percent}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(label)} 整體進度"><i style="width:${s.percent}%"></i></div><div class="case-actions"><button type="button" class="btn secondary case-open" data-open-project="${esc(s.id)}">進入案件<svg><use href="#i-arrow"/></svg></button><button type="button" class="btn secondary case-delete" data-delete-project="${esc(s.id)}" aria-label="刪除案件 ${esc(label)}" title="刪除此案件"><svg><use href="#i-trash"/></svg>刪除</button></div></div>
       </article>`;
     }).join('');
   }
@@ -116,7 +116,6 @@
     if (select.innerHTML !== next) select.innerHTML = next;
     select.value = workspace.activeProjectId;
     $('#project-count').textContent = `共 ${workspace.projects.length} 個案件`;
-    $('#delete-project').disabled = workspace.projects.length <= 1;
   }
   function renderDeadline() {
     const info = M.deadlineInfo(state.project.deadline);
@@ -276,23 +275,35 @@
     $('#copy-vendors-count').textContent = `（${state.vendors.length} 間）`;
     projectDialog.showModal();
   });
-  $('#delete-project').addEventListener('click', () => {
-    if (workspace.projects.length <= 1) return;
-    const name = state.project.name.trim() || '未命名案件';
-    if (!confirm(`確定要刪除案件「${name}」？\n其中 ${state.vendors.length} 間廠商與所有勾選記錄會一併刪除。\n（刪除後可在提示中按「復原」，重新整理頁面後就無法復原）`)) return;
+  // 刪除任一案件（目前案件或總覽頁上的任何一件），可在提示中按「復原」。
+  function deleteProject(id) {
+    const entry = workspace.projects.find(p => p.id === id);
+    if (!entry) return;
+    const name = entry.project.name.trim() || '未命名案件';
+    const last = workspace.projects.length <= 1;
+    if (!confirm(`確定要刪除案件「${name}」？\n其中 ${entry.vendors.length} 間廠商與所有勾選記錄會一併刪除。${last ? '\n這是最後一個案件，刪除後會自動建立一個空白案件。' : ''}\n（刪除後可在提示中按「復原」，重新整理頁面後就無法復原）`)) return;
     try {
-      const removed = M.removeProject(workspace, state.id);
-      bulkUndo.delete(removed.project.id);
-      state = M.currentProject(workspace); resetView(); syncProjectInputs(); save(); render();
+      const wasActive = workspace.activeProjectId === id;
+      let placeholder = null;
+      if (last) { placeholder = { id: uid(), project: { name: '', deadline: '', days: 3, stages: { collected: '', split: '' }, categoryTasks: {} }, vendors: [] }; workspace.projects.push(placeholder); }
+      const removed = M.removeProject(workspace, id);
+      bulkUndo.delete(id);
+      state = M.currentProject(workspace);
+      if (wasActive) { resetView(); syncProjectInputs(); }
+      save(); render();
       toast(`已刪除案件「${name}」`, { label: '復原', run: () => {
         try {
+          const activeBefore = workspace.activeProjectId;
           const restored = M.restoreProject(workspace, removed);
           if (!restored) return;
-          state = restored; resetView(); syncProjectInputs(); save(); render(); toast(`已復原案件「${name}」`);
+          if (placeholder && !placeholder.vendors.length && !placeholder.project.name.trim()) workspace.projects = workspace.projects.filter(p => p !== placeholder);
+          if (!wasActive && workspace.projects.some(p => p.id === activeBefore)) workspace.activeProjectId = activeBefore;
+          state = M.currentProject(workspace); resetView(); syncProjectInputs(); save(); render(); toast(`已復原案件「${name}」`);
         } catch (error) { toast(error.message); }
       } });
     } catch (error) { toast(error.message); }
-  });
+  }
+  $('#delete-project').addEventListener('click', () => deleteProject(state.id));
   $$('.close-project-dialog').forEach(button => button.addEventListener('click', () => projectDialog.close()));
   projectForm.elements.namedItem('name').addEventListener('input', event => event.target.setCustomValidity(''));
   projectForm.addEventListener('submit', event => {
@@ -343,6 +354,8 @@
   $('#cases-back').addEventListener('click', () => setView('case'));
   $('#cases-add-project').addEventListener('click', () => $('#add-project').click());
   $('#cases-list').addEventListener('click', event => {
+    const del = event.target.closest('[data-delete-project]');
+    if (del) { deleteProject(del.dataset.deleteProject); return; }
     const target = event.target.closest('[data-open-project]');
     if (!target || event.target.closest('a')) return;
     const id = target.dataset.openProject;

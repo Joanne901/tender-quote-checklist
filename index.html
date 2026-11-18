@@ -8,9 +8,9 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" defer></script>
-  <script src="model.js?v=11" defer></script><script src="config.js?v=11" defer></script><script src="sync.js?v=11" defer></script><script src="app.js?v=11" defer></script>
+  <script src="model.js?v=12" defer></script><script src="config.js?v=12" defer></script><script src="sync.js?v=12" defer></script><script src="app.js?v=12" defer></script>
 </head>
 <body>
 <svg aria-hidden="true" class="sprite" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -52,7 +52,7 @@
     <div class="switcher-icon"><svg><use href="#i-file"/></svg></div>
     <label class="project-selector-label" for="project-select"><span>目前案件 <small id="project-count">共 1 個案件</small></span><select id="project-select" aria-label="切換詢價案件"></select></label>
     <p class="switcher-hint">各案件的廠商、分類與進度<br>分別儲存，切換即時查看。</p>
-    <div class="switcher-actions"><button type="button" class="btn secondary" id="show-cases"><svg><use href="#i-layers"/></svg>所有案件進度</button><button type="button" class="btn secondary" id="add-project"><svg><use href="#i-plus"/></svg>新增案件</button><button type="button" class="btn secondary icon-btn" id="delete-project" aria-label="刪除目前案件" title="刪除目前案件"><svg><use href="#i-trash"/></svg></button></div>
+    <div class="switcher-actions"><button type="button" class="btn secondary" id="show-cases"><svg><use href="#i-layers"/></svg>所有案件進度</button><button type="button" class="btn secondary" id="add-project"><svg><use href="#i-plus"/></svg>新增案件</button><button type="button" class="btn secondary icon-btn" id="delete-project" title="刪除目前案件"><svg><use href="#i-trash"/></svg>刪除案件</button></div>
   </section>
   <section class="project-card" aria-label="標案設定"><div class="project-symbol"><svg><use href="#i-file"/></svg></div><label class="project-name">標案名稱<input id="project-name" maxlength="160" placeholder="輸入這次的標案名稱" autocomplete="off"></label><label class="project-deadline">投標截止日<input type="date" id="project-deadline"><span id="deadline-badge" class="deadline-badge hidden"></span></label><label class="days-setting">追蹤期限<span><input type="number" id="follow-days" min="1" max="30" value="3" aria-label="寄信後幾個日曆天內追蹤"> 個日曆天</span></label></section>
   <section class="stage-track" aria-label="投標流程進度"><div class="stage-track-heading"><span class="eyebrow">BID WORKFLOW</span><span>投標流程：點一下即勾選完成，再點一次取消</span></div><div id="stage-track" class="stage-cards"></div></section>

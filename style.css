@@ -188,3 +188,12 @@ body.view-cases .page-heading,body.view-cases .project-switcher,body.view-cases 
 @media(max-width:900px){.cases-stats{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:600px){.cases-head{flex-direction:column;align-items:stretch}.cases-head h1{font-size:24px}.case-row{grid-template-columns:1fr;gap:14px;padding:16px}.case-detail{grid-row:auto}.case-counts{grid-template-columns:repeat(3,minmax(0,1fr))}.case-progress{flex-direction:row;align-items:center}.case-bar{flex:1}.case-open{white-space:nowrap}}
 @media print{body.view-cases .cases-head .heading-actions,.case-open{display:none!important}.case-row{break-inside:avoid;box-shadow:none}}
+/* ===== v12 刪除案件 ===== */
+.switcher-actions .icon-btn{padding:10px 13px}
+.case-actions{display:flex;gap:8px}
+.case-actions .case-open{flex:1}
+.case-delete{min-height:36px;padding:8px 10px;color:#9a6a5c}
+.case-delete svg{width:15px;height:15px}
+.case-delete:hover{background:#fbede7;border-color:#efcfc3;color:var(--red)}
+@media(max-width:600px){.case-progress{flex-wrap:wrap}.case-actions{width:100%}.switcher-actions{flex-wrap:wrap}.switcher-actions .btn{flex:1}}
+@media print{.case-delete{display:none!important}}
