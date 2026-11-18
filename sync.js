@@ -13,7 +13,7 @@
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   // ---------- 資料列 <-> workspace ----------
-  const projectRow = (entry, position) => ({ id: entry.id, position, name: entry.project.name, deadline: entry.project.deadline || '', days: entry.project.days, title: entry.project.title || null });
+  const projectRow = (entry, position) => ({ id: entry.id, position, name: entry.project.name, deadline: entry.project.deadline || '', days: entry.project.days, title: entry.project.title || null, stages: entry.project.stages || {}, category_tasks: entry.project.categoryTasks || {} });
   const vendorRow = (v, projectId, position) => ({ id: v.id, project_id: projectId, position, name: v.name, category: v.category || '', contact: v.contact || '', phone: v.phone || '', email: v.email || '', note: v.note || '', no_quote: Boolean(v.noQuote), dates: v.dates });
   const bookRow = profile => ({ key: app.M.vendorNameKey(profile.name), profile });
   const keyOf = (table, row) => table + ':' + (table === 'vendor_book' ? row.key : row.id);
@@ -39,7 +39,7 @@
       activeProjectId: projects.some(p => p.id === activeId) ? activeId : projects[0].id,
       projects: projects.slice().sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)).map(p => ({
         id: p.id,
-        project: { name: p.name, deadline: p.deadline || '', days: p.days, title: p.title || undefined },
+        project: { name: p.name, deadline: p.deadline || '', days: p.days, title: p.title || undefined, stages: p.stages || {}, categoryTasks: p.category_tasks || {} },
         vendors: byProject.get(p.id).map(v => ({ id: v.id, name: v.name, category: v.category, contact: v.contact, phone: v.phone, email: v.email, note: v.note, noQuote: v.no_quote, dates: v.dates || {} }))
       })),
       vendorBook: book.slice().sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at))).map(b => b.profile)

@@ -24,6 +24,10 @@ create table if not exists public.projects (
   updated_by text
 );
 
+-- 2b) 案件流程：領標、拆標單（stages）；各分類的拆圖說、拆規範（category_tasks）
+alter table public.projects add column if not exists stages jsonb not null default '{}'::jsonb;
+alter table public.projects add column if not exists category_tasks jsonb not null default '{}'::jsonb;
+
 -- 3) 廠商（每一列就是一間廠商在某個案件裡的進度）
 create table if not exists public.vendors (
   id text primary key,

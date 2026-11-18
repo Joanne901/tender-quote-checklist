@@ -1,11 +1,21 @@
 (function (root) {
   'use strict';
   const steps = [
-    { key: 'sent', label: '詢價信已寄出' },
+    { key: 'sent', label: '已寄送 Email' },
     { key: 'called', label: '電話確認收信' },
     { key: 'followed', label: '已追蹤回覆' },
     { key: 'received', label: '已收到報價' },
     { key: 'filled', label: '已回填報價表' }
+  ];
+  // 案件層級：整個案件各做一次
+  const projectStages = [
+    { key: 'collected', label: '領標' },
+    { key: 'split', label: '拆標單' }
+  ];
+  // 分類層級：詢價前，每個分類各做一次（同分類廠商共用）
+  const categorySteps = [
+    { key: 'drawings', label: '拆圖說' },
+    { key: 'specs', label: '拆規範' }
   ];
   const today = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   function validDate(value) {
@@ -25,7 +35,7 @@
   function progress(vendor, days, date = today()) {
     if (vendor.noQuote) return { label: '結案・不報價', tone: 'neutral' };
     if (complete(vendor)) return { label: '全部已完成', tone: 'finished' };
-    if (!vendor.dates.sent) return { label: '待寄詢價信', tone: 'neutral' };
+    if (!vendor.dates.sent) return { label: '待寄送 Email', tone: 'neutral' };
     if (!vendor.dates.called) return { label: '待電話確認收信', tone: overdue(vendor, days, date) ? 'overdue' : 'waiting' };
     if (overdue(vendor, days, date)) return { label: vendor.dates.followed ? '逾期待再次催覆' : '逾期未追蹤', tone: 'overdue' };
     if (!vendor.dates.followed) return { label: '待追蹤回覆', tone: 'waiting' };
@@ -77,7 +87,20 @@
     });
     const deadline = input.project.deadline || '';
     if (deadline && !validDate(deadline)) throw new Error('投標截止日期格式不正確。');
-    const project = { name: str(input.project.name, 160), deadline, days };
+    const stages = {};
+    for (const stage of projectStages) { const value = input.project.stages?.[stage.key]; stages[stage.key] = validDate(value) ? value : ''; }
+    const categoryTasks = {};
+    const rawTasks = input.project.categoryTasks;
+    if (rawTasks && typeof rawTasks === 'object' && !Array.isArray(rawTasks)) {
+      for (const [rawKey, task] of Object.entries(rawTasks).slice(0, 1000)) {
+        const key = normalizeCategory(rawKey).toLocaleLowerCase('zh-TW').slice(0, 300);
+        if (!key || !task || typeof task !== 'object') continue;
+        const entry = {};
+        for (const step of categorySteps) entry[step.key] = validDate(task[step.key]) ? task[step.key] : '';
+        if (Object.values(entry).some(Boolean)) categoryTasks[key] = entry;
+      }
+    }
+    const project = { name: str(input.project.name, 160), deadline, days, stages, categoryTasks };
     const title = str(input.project.title, 100).trim();
     if (title) project.title = title;
     return { version: 1, project, vendors };
@@ -208,7 +231,23 @@
     if (days === 0) return { days, label: '今天投標截止', tone: 'overdue' };
     return { days, label: `距投標截止 ${days} 天`, tone: days <= 3 ? 'waiting' : 'neutral' };
   }
+  const categoryPrep = (project, key) => ({ ...Object.fromEntries(categorySteps.map(step => [step.key, ''])), ...(project.categoryTasks?.[key] || {}) });
+  const prepDone = (project, key) => categorySteps.every(step => Boolean(categoryPrep(project, key)[step.key]));
+  function toggleCategoryStep(project, key, step, date = today()) {
+    if (!categorySteps.some(s => s.key === step)) throw new Error('未知的分類步驟。');
+    project.categoryTasks = project.categoryTasks || {};
+    const entry = categoryPrep(project, key);
+    entry[step] = entry[step] ? '' : date;
+    if (Object.values(entry).some(Boolean)) project.categoryTasks[key] = entry; else delete project.categoryTasks[key];
+    return entry[step];
+  }
+  function toggleStage(project, stage, date = today()) {
+    if (!projectStages.some(s => s.key === stage)) throw new Error('未知的案件步驟。');
+    project.stages = { ...Object.fromEntries(projectStages.map(s => [s.key, ''])), ...(project.stages || {}) };
+    project.stages[stage] = project.stages[stage] ? '' : date;
+    return project.stages[stage];
+  }
   const duplicateVendor = (project, name, exceptId = '') => project.vendors.find(v => v.id !== exceptId && vendorNameKey(v.name) === vendorNameKey(name));
-  root.QuoteTracker = { steps, today, validDate, addDays, due, complete, overdue, progress, pendingFill, attention, blankDates, normalizeCategory, categoryName, categoryKey, categoryTone, groupVendors, projectTitle, validateState, workspaceFromLegacy, emptyWorkspace, validateWorkspace, currentProject, selectProject, addProject, completeProject, undoProjectCompletion, vendorNameKey, vendorProfile, buildVendorBook, rememberVendor, searchVendorBook, findRememberedVendor, removeProject, restoreProject, copyVendorList, daysBetween, deadlineInfo, duplicateVendor };
+  root.QuoteTracker = { steps, today, validDate, addDays, due, complete, overdue, progress, pendingFill, attention, blankDates, normalizeCategory, categoryName, categoryKey, categoryTone, groupVendors, projectTitle, validateState, workspaceFromLegacy, emptyWorkspace, validateWorkspace, currentProject, selectProject, addProject, completeProject, undoProjectCompletion, vendorNameKey, vendorProfile, buildVendorBook, rememberVendor, searchVendorBook, findRememberedVendor, removeProject, restoreProject, copyVendorList, daysBetween, deadlineInfo, duplicateVendor, projectStages, categorySteps, categoryPrep, prepDone, toggleCategoryStep, toggleStage };
   if (typeof module !== 'undefined') module.exports = root.QuoteTracker;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

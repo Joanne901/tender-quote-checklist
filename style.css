@@ -107,3 +107,38 @@ select{font:inherit}select:focus-visible{outline:3px solid #a0c6b7;outline-offse
 .member-list em{font-style:normal;color:#8a958c}
 @media(max-width:600px){.topbar-right{gap:8px}.cloud-pill{font-size:11px;padding:4px 9px}.today span{display:none}.cloud-form{flex-direction:column;align-items:stretch}}
 @media print{.cloud-pill{display:none!important}}
+/* ===== v9 投標流程：領標 → 拆標單 → 詢價 ===== */
+.stage-track{margin-top:16px;padding:16px 18px;border:1px solid var(--line);background:#fff;border-radius:9px}
+.stage-track-heading{display:flex;align-items:baseline;gap:12px;margin-bottom:12px;font-size:12px;color:#7a877f}
+.stage-cards{display:grid;grid-template-columns:1fr 1fr 2.2fr;gap:12px}
+.stage-card{display:flex;align-items:flex-start;gap:12px;text-align:left;padding:14px 16px;border:1px solid #e1e7df;border-radius:8px;background:#fbfcfa;color:var(--ink);font:inherit;min-width:0}
+button.stage-card:hover{border-color:#a5b9ab;background:#fff}
+.stage-card.current{border-color:#9fbea9;box-shadow:inset 0 0 0 1px #9fbea9;background:#fff}
+.stage-card.done{background:#edf3e9;border-color:#d4e2cc}
+.stage-no{flex:0 0 30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;background:#eef2ec;color:#6c7c71;border:1px solid #dbe3d8}
+.stage-card.current .stage-no{background:var(--green);color:#fff;border-color:var(--green)}
+.stage-card.done .stage-no{background:#4f8a58;color:#fff;border-color:#4f8a58}
+.stage-text{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.stage-text strong{font-size:15px}
+.stage-text small{font-size:12px;color:#7d8983}
+.stage-card.done .stage-text small{color:#4f7850}
+.stage-subs{list-style:none;margin:4px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.stage-subs li{display:flex;flex-direction:column;gap:2px;padding:6px 8px;border-radius:6px;background:#f1f4ef;font-size:11px;color:#6c7c71}
+.stage-subs li b{font-size:14px;font-weight:600;color:var(--ink)}
+.stage-subs li.done{background:#e3eedf;color:#4f7850}.stage-subs li.done b{color:#3f6a47}
+/* 分類標題列：拆圖說 / 拆規範 */
+.prep-chips{display:flex;gap:6px}
+.prep-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #d3ddcd;background:#fff;color:#5d7259;border-radius:999px;padding:4px 10px 4px 5px;font-size:12px;font-weight:500;white-space:nowrap}
+.prep-chip:hover{border-color:#9fbea9}
+.prep-box{width:16px;height:16px;border-radius:4px;border:1.5px solid #b7c6b2;display:grid;place-items:center;font-size:11px;line-height:1;background:#fff}
+.prep-chip.done{background:#e3eedf;border-color:#bcd3b4;color:#3f6a47}
+.prep-chip.done .prep-box{background:#4f8a58;border-color:#4f8a58;color:#fff}
+.prep-chip small{font-size:11px;color:#6c8760;font-weight:400}
+.group-summary{flex-wrap:wrap;justify-content:flex-end;row-gap:6px}
+/* 流程說明 */
+.flow-steps{flex-wrap:wrap;justify-content:flex-start;max-width:none;row-gap:10px}
+.flow-steps .flow-group{gap:8px;padding:5px 10px;border:1px dashed #c9d8c4;border-radius:7px;background:#f7faf5}
+@media(max-width:1100px){.stage-cards{grid-template-columns:1fr 1fr}.stage-card.inquiry{grid-column:1/-1}}
+@media(max-width:900px){.group-heading{flex-wrap:wrap}.group-summary{justify-content:flex-start}}
+@media(max-width:600px){.stage-track{padding:14px}.stage-track-heading{flex-direction:column;gap:4px}.stage-subs{grid-template-columns:repeat(2,minmax(0,1fr))}.flow-steps .flow-group{flex-wrap:wrap}}
+@media print{.stage-track{border:1px solid #ccc;break-inside:avoid}}

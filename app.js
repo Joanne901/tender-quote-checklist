@@ -92,11 +92,38 @@
     const match = filter === 'attention' ? M.attention(v, state.project.days) : filter === 'complete' ? M.complete(v) : filter === 'fill' ? M.pendingFill(v) : true;
     return match && (categoryFilter === null || M.categoryKey(v) === categoryFilter) && (!query || [M.categoryName(v), v.name, v.contact, v.phone, v.email, v.note].join(' ').toLowerCase().includes(query));
   }
+  const shortDate = date => date ? date.slice(5).replace('-', '/') : '';
+  // 分類標題列的「拆圖說」「拆規範」：同分類廠商共用，每個分類勾一次。
+  function prepChips(group) {
+    const prep = M.categoryPrep(state.project, group.key);
+    return `<span class="prep-chips">${M.categorySteps.map(step => {
+      const date = prep[step.key];
+      return `<button type="button" class="prep-chip ${date ? 'done' : ''}" data-prep="${step.key}" data-prep-category="${esc(group.key)}" aria-pressed="${Boolean(date)}" title="${date ? `${step.label}已於 ${date} 完成，再點一次取消` : `點一下標記「${esc(group.name)}」${step.label}完成`}"><span class="prep-box">${date ? '✓' : ''}</span>${step.label}${date ? `<small>${shortDate(date)}</small>` : ''}</button>`;
+    }).join('')}</span>`;
+  }
+  // 案件流程卡：① 領標 ② 拆標單 ③ 詢價（含各分類拆圖說/拆規範與廠商進度）
+  function renderStages() {
+    const project = state.project;
+    const stages = { collected: '', split: '', ...(project.stages || {}) };
+    const groups = M.groupVendors(state.vendors);
+    const quoting = state.vendors.filter(v => !v.noQuote);
+    const count = fn => quoting.filter(fn).length;
+    const prepCount = key => groups.filter(group => M.categoryPrep(project, group.key)[key]).length;
+    const inquiryDone = groups.length > 0 && groups.every(group => M.prepDone(project, group.key)) && quoting.length > 0 && quoting.every(v => v.dates.sent && v.dates.called);
+    const current = !stages.collected ? 'collected' : !stages.split ? 'split' : 'inquiry';
+    const stageCard = (stage, index) => {
+      const date = stages[stage.key];
+      return `<button type="button" class="stage-card ${date ? 'done' : ''} ${current === stage.key ? 'current' : ''}" data-stage="${stage.key}" aria-pressed="${Boolean(date)}"><span class="stage-no">${date ? '✓' : index + 1}</span><span class="stage-text"><strong>${stage.label}</strong><small>${date ? `${shortDate(date)} 完成` : current === stage.key ? '目前步驟 · 點一下完成' : '尚未完成'}</small></span></button>`;
+    };
+    const sub = (label, done, total) => `<li class="${total && done === total ? 'done' : ''}"><span>${label}</span><b>${done}/${total}</b></li>`;
+    $('#stage-track').innerHTML = M.projectStages.map(stageCard).join('') +
+      `<div class="stage-card inquiry ${inquiryDone ? 'done' : ''} ${current === 'inquiry' ? 'current' : ''}"><span class="stage-no">${inquiryDone ? '✓' : 3}</span><span class="stage-text"><strong>詢價</strong><ul class="stage-subs">${sub('拆圖說', prepCount('drawings'), groups.length)}${sub('拆規範', prepCount('specs'), groups.length)}${sub('寄送 Email', count(v => v.dates.sent), quoting.length)}${sub('電話確認', count(v => v.dates.called), quoting.length)}</ul></span></div>`;
+  }
   function groupRows(group) {
     const collapsed = collapsedGroups.has(group.key);
     const finished = group.vendors.filter(M.complete).length;
     const pending = group.vendors.filter(v => M.attention(v, state.project.days)).length;
-    return `<tr class="group-row category-tone-${group.tone}"><th colspan="8" scope="colgroup"><div class="group-heading"><button type="button" data-group-toggle="${esc(group.key)}" aria-expanded="${!collapsed}" aria-label="${collapsed ? '展開' : '收合'} ${esc(group.name)}"><span class="group-chevron ${collapsed ? '' : 'expanded'}">›</span><span class="category-dot" aria-hidden="true"></span><span class="group-name">${esc(group.name)}</span><span class="group-vendor-count">${group.vendors.length} 間廠商</span></button><div class="group-summary">${pending ? `<span class="group-pending">${pending} 間待處理</span>` : ''}<span>已完成 ${finished} / ${group.vendors.length}</span><button type="button" class="group-add" data-group-add="${esc(group.name)}" aria-label="在 ${esc(group.name)} 新增廠商"><svg><use href="#i-plus"/></svg>新增廠商</button></div></div></th></tr>${collapsed ? '' : group.vendors.map(row).join('')}`;
+    return `<tr class="group-row category-tone-${group.tone}"><th colspan="8" scope="colgroup"><div class="group-heading"><button type="button" data-group-toggle="${esc(group.key)}" aria-expanded="${!collapsed}" aria-label="${collapsed ? '展開' : '收合'} ${esc(group.name)}"><span class="group-chevron ${collapsed ? '' : 'expanded'}">›</span><span class="category-dot" aria-hidden="true"></span><span class="group-name">${esc(group.name)}</span><span class="group-vendor-count">${group.vendors.length} 間廠商</span></button><div class="group-summary">${prepChips(group)}${pending ? `<span class="group-pending">${pending} 間待處理</span>` : ''}<span>已完成 ${finished} / ${group.vendors.length}</span><button type="button" class="group-add" data-group-add="${esc(group.name)}" aria-label="在 ${esc(group.name)} 新增廠商"><svg><use href="#i-plus"/></svg>新增廠商</button></div></div></th></tr>${collapsed ? '' : group.vendors.map(row).join('')}`;
   }
   // 電話、Email 直接可點：手機一按就撥號，電腦開啟郵件程式。
   function contactLine(v) {
@@ -109,7 +136,9 @@
     return contact + mail;
   }
   function row(v) {
-    const status = M.progress(v, state.project.days), due = M.due(v, state.project.days);
+    let status = M.progress(v, state.project.days);
+    const due = M.due(v, state.project.days);
+    if (!v.noQuote && !v.dates.sent && !M.prepDone(state.project, M.categoryKey(v))) status = { label: '待拆圖說／規範', tone: 'neutral' };
     const late = M.overdue(v, state.project.days);
     const cells = M.steps.map(step => {
       const date = v.dates[step.key];
@@ -147,7 +176,7 @@
     $('#no-results').classList.toggle('hidden', vs.length === 0 || visible.length > 0);
     $('#results-count').textContent = (visible.length === vs.length ? `共 ${vs.length} 間廠商` : `顯示 ${visible.length} / ${vs.length} 間廠商`) + ` · ${visibleGroups.length} 個分類`;
     $('#flow-days').textContent = state.project.days;
-    renderDeadline(); renderBackupReminder();
+    renderDeadline(); renderBackupReminder(); renderStages();
   }
   function syncProjectInputs() {
     // 正在輸入的欄位不覆寫（例如同事那邊的更新剛好進來）
@@ -267,6 +296,15 @@
     if (target) target.focus({ preventScroll: true });
     if (!stored) toast('已更新，請下載備份以保留變更');
   });
+  $('#stage-track').addEventListener('click', event => {
+    const card = event.target.closest('[data-stage]');
+    if (!card) return;
+    const stage = card.dataset.stage, label = M.projectStages.find(s => s.key === stage).label;
+    const date = M.toggleStage(state.project, stage);
+    const stored = save(); render();
+    $$('[data-stage]').find(b => b.dataset.stage === stage)?.focus({ preventScroll: true });
+    toast(stored ? (date ? `「${label}」已完成（${date}）` : `已取消「${label}」`) : '已更新，請下載備份以保留變更');
+  });
   $('#vendor-rows').addEventListener('click', event => {
     const toggle = event.target.closest('[data-group-toggle]');
     if (toggle) {
@@ -275,6 +313,16 @@
       render();
       const target = $$('[data-group-toggle]').find(b => b.dataset.groupToggle === key);
       if (target) target.focus({ preventScroll: true });
+      return;
+    }
+    const prep = event.target.closest('[data-prep]');
+    if (prep) {
+      const key = prep.dataset.prepCategory, step = prep.dataset.prep;
+      M.toggleCategoryStep(state.project, key, step);
+      const stored = save(); render();
+      const target = $$('[data-prep]').find(b => b.dataset.prepCategory === key && b.dataset.prep === step);
+      if (target) target.focus({ preventScroll: true });
+      if (!stored) toast('已更新，請下載備份以保留變更');
       return;
     }
     const add = event.target.closest('[data-group-add]');
@@ -397,8 +445,12 @@
   $('#print-list').addEventListener('click', () => { closeExport(); resetView(); render(); setTimeout(() => window.print(), 50); });
   $('#export-csv').addEventListener('click', () => {
     const csvCell = value => { let text = String(value ?? ''); if (/^[\t\r\n ]*[=+@-]/.test(text)) text = "'" + text; return '"' + text.replace(/"/g, '""') + '"'; };
-    const rows = [['標案名稱','投標截止日','分類','廠商名稱','聯絡人','電話','電子郵件',...M.steps.map(s => s.label + '日期'),'追蹤期限','目前進度','備註']];
-    for (const group of M.groupVendors(state.vendors)) for (const v of group.vendors) rows.push([state.project.name,state.project.deadline,M.categoryName(v),v.name,v.contact,v.phone,v.email,...M.steps.map(s => v.dates[s.key]),M.due(v,state.project.days),M.progress(v,state.project.days).label,v.note]);
+    const stages = state.project.stages || {};
+    const rows = [['標案名稱','投標截止日',...M.projectStages.map(s => s.label + '日期'),'分類',...M.categorySteps.map(s => s.label + '日期'),'廠商名稱','聯絡人','電話','電子郵件',...M.steps.map(s => s.label + '日期'),'追蹤期限','目前進度','備註']];
+    for (const group of M.groupVendors(state.vendors)) {
+      const prep = M.categoryPrep(state.project, group.key);
+      for (const v of group.vendors) rows.push([state.project.name,state.project.deadline,...M.projectStages.map(s => stages[s.key] || ''),M.categoryName(v),...M.categorySteps.map(s => prep[s.key]),v.name,v.contact,v.phone,v.email,...M.steps.map(s => v.dates[s.key]),M.due(v,state.project.days),M.progress(v,state.project.days).label,v.note]);
+    }
     download('\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n'), `廠商詢價追蹤表-${M.today()}.csv`, 'text/csv;charset=utf-8;');
     toast('試算表已匯出，可用 Excel 開啟');
   });
