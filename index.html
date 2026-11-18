@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#164f48">
+  <meta name="description" content="投標前的廠商詢價確認表：勾選寄信、電話確認、三日追蹤、報價收件與回填，自動儲存每一步。">
+  <title>詢價確認表｜投標前的每一步</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css?v=8">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" defer></script>
+  <script src="model.js?v=8" defer></script><script src="config.js?v=8" defer></script><script src="sync.js?v=8" defer></script><script src="app.js?v=8" defer></script>
+</head>
+<body>
+<svg aria-hidden="true" class="sprite" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><path d="M6 3 3 6c0 7 8 15 15 15l3-3-5-4-3 2-5-5 2-3-4-5Z"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H5v18h14V8l-5-5Zm0 0v5h5M8 12h8m-8 4h5"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v6m4-6v6"/></symbol>
+<symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l5-1L21 7l-5-5L4 14v6Z"/></symbol>
+</defs></svg>
+<aside class="sidebar">
+  <a class="brand" href="./" aria-label="詢價確認表首頁"><span class="brand-icon"><svg><use href="#i-check"/></svg></span><span>詢價確認表<small>BID PREPARATION</small></span></a>
+  <div class="side-caption">工作空間</div>
+  <nav aria-label="檢視篩選">
+    <button class="nav-item active" data-filter="all"><svg><use href="#i-grid"/></svg>詢價總覽<span id="nav-total">0</span></button>
+    <button class="nav-item" data-filter="attention"><svg><use href="#i-clock"/></svg>待處理<span id="nav-attention">0</span></button>
+    <button class="nav-item" data-filter="complete"><svg><use href="#i-check"/></svg>已完成<span id="nav-complete">0</span></button>
+  </nav>
+  <div class="side-note"><span class="small-dot"></span>一步一步，準備到位<p>把詢價流程記清楚，<br>投標前少一點遺漏。</p></div>
+  <div class="storage-note"><span id="save-dot" class="small-dot"></span><span id="save-status" role="status">此瀏覽器自動儲存</span><p>資料保存在目前的裝置與瀏覽器，<br>建議定期匯出備份。</p></div>
+</aside>
+<div class="workspace">
+<header class="topbar"><div class="breadcrumb">投標準備 <span>/</span> 詢價總覽</div><div class="topbar-right"><button type="button" id="cloud-status" class="cloud-pill local" hidden><span class="cloud-dot"></span><span id="cloud-status-text">登入以跨裝置同步</span></button><div class="today"><svg><use href="#i-clock"/></svg><span id="today"></span></div></div></header>
+<main>
+  <div id="storage-warning" class="warning hidden" role="alert"></div>
+  <div id="backup-reminder" class="backup-reminder hidden" role="status"><svg aria-hidden="true"><use href="#i-download"/></svg><p id="backup-reminder-text">資料只存在這個瀏覽器，建議下載備份。</p><div><button type="button" class="btn primary" id="backup-now">立即下載備份</button><button type="button" class="link-btn" id="backup-snooze">今天不再提醒</button></div></div>
+  <section class="page-heading"><div><div class="eyebrow">VENDOR CHECKLIST</div><h1 class="editable-heading"><input type="text" id="page-title" value="詢價確認表" maxlength="100" autocomplete="off" aria-label="大標題名稱，可直接修改並自動儲存"><svg class="title-edit-icon" aria-hidden="true"><use href="#i-edit"/></svg></h1><span class="title-edit-hint">點選大標題即可修改，自動儲存。</span><p>從寄出詢價到報價回填，每一步都確認到位。</p></div><div class="heading-actions"><div class="export-wrap"><button id="export-toggle" class="btn secondary" aria-expanded="false" aria-controls="export-menu"><svg><use href="#i-download"/></svg>匯出與備份</button><div id="export-menu" class="export-menu hidden"><button id="export-csv">匯出目前案件 CSV</button><button id="backup">下載案件與廠商完整備份</button><button id="import">匯入案件備份</button><button id="print-list">列印目前清單</button></div></div><button class="btn primary add-vendor"><svg><use href="#i-plus"/></svg>新增廠商</button></div></section>
+  <section class="project-switcher" aria-label="選擇與新增案件">
+    <div class="switcher-icon"><svg><use href="#i-file"/></svg></div>
+    <label class="project-selector-label" for="project-select"><span>目前案件 <small id="project-count">共 1 個案件</small></span><select id="project-select" aria-label="切換詢價案件"></select></label>
+    <p class="switcher-hint">各案件的廠商、分類與進度<br>分別儲存，切換即時查看。</p>
+    <div class="switcher-actions"><button type="button" class="btn secondary" id="add-project"><svg><use href="#i-plus"/></svg>新增案件</button><button type="button" class="btn secondary icon-btn" id="delete-project" aria-label="刪除目前案件" title="刪除目前案件"><svg><use href="#i-trash"/></svg></button></div>
+  </section>
+  <section class="project-card" aria-label="標案設定"><div class="project-symbol"><svg><use href="#i-file"/></svg></div><label class="project-name">標案名稱<input id="project-name" maxlength="160" placeholder="輸入這次的標案名稱" autocomplete="off"></label><label class="project-deadline">投標截止日<input type="date" id="project-deadline"><span id="deadline-badge" class="deadline-badge hidden"></span></label><label class="days-setting">追蹤期限<span><input type="number" id="follow-days" min="1" max="30" value="3" aria-label="寄信後幾個日曆天內追蹤"> 個日曆天</span></label></section>
+  <section class="metrics" aria-label="詢價統計">
+    <button class="metric" data-filter="all"><div><span>詢價廠商</span><svg><use href="#i-grid"/></svg></div><strong id="count-total">0</strong><small>目前案件的詢價總數</small></button>
+    <button class="metric" data-filter="attention"><div><span>待處理</span><svg><use href="#i-clock"/></svg></div><strong id="count-attention">0</strong><small id="attention-caption">確認收信與追蹤進度</small></button>
+    <button class="metric" data-filter="fill"><div><span>待回填報價</span><svg><use href="#i-file"/></svg></div><strong id="count-fill">0</strong><small>已收到，尚未回填彙整表</small></button>
+    <button class="metric complete-metric" data-filter="complete"><div><span>全部已完成</span><svg><use href="#i-check"/></svg></div><strong id="count-complete">0</strong><small>五個步驟皆已確認</small></button>
+  </section>
+  <section class="category-panel" aria-labelledby="category-title">
+    <div class="category-panel-heading"><div><h2 id="category-title"><svg><use href="#i-grid"/></svg>依分類整理 <span id="category-count">0 類</span></h2><p>同類廠商放在一起；點分類可快速篩選，點組別標題可收合。</p></div><div class="group-controls"><button id="expand-groups" type="button">全部展開</button><span>／</span><button id="collapse-groups" type="button">全部收合</button></div></div>
+    <div id="category-filters" class="category-filters" role="group" aria-label="依分類整理篩選"></div>
+    <p class="category-tip">新增或編輯廠商時，填寫相同的「分類」（例如「水電工程」），就會歸在同一組。</p>
+  </section>
+  <section class="table-card" aria-label="廠商詢價清單">
+    <div class="table-toolbar"><div class="tabs" role="group" aria-label="清單篩選"><button data-filter="all" class="active">全部廠商 <span id="tab-total">0</span></button><button data-filter="attention">待處理</button><button data-filter="fill">待回填</button><button data-filter="complete">已完成</button></div><label class="search"><svg><use href="#i-search"/></svg><input type="search" id="search" placeholder="搜尋分類、廠商或聯絡人" aria-label="搜尋分類、廠商或聯絡人"></label></div>
+    <div class="bulk-toolbar" aria-label="目前案件批次確認"><div class="bulk-description"><strong>目前案件全部進度 <span id="bulk-count"></span></strong><p id="bulk-scope">一次勾選此案件所有分類與廠商的五個步驟；不報價廠商不列入。</p></div><div class="bulk-actions"><button type="button" class="btn secondary hidden" id="undo-complete-all">復原本次勾選</button><button type="button" class="btn bulk-complete" id="complete-all" aria-describedby="bulk-scope"><svg><use href="#i-check"/></svg>本案件全部勾選</button></div></div>
+    <div class="table-scroll"><table><thead><tr><th class="vendor-col">廠商 / 分類</th><th><span class="step-no">01</span>詢價信已寄出</th><th><span class="step-no">02</span>電話確認收信</th><th><span class="step-no">03</span>期限內追蹤</th><th><span class="step-no">04</span>已收到報價</th><th><span class="step-no">05</span>已回填報價表</th><th class="progress-col">目前進度</th><th class="row-action"><span class="sr-only">編輯</span></th></tr></thead><tbody id="vendor-rows"></tbody></table></div>
+    <div id="empty-state" class="empty-state"><div class="empty-art"><span class="paper"><span></span><i></i><i></i><i></i></span><span class="empty-check"><svg><use href="#i-check"/></svg></span></div><h2>從第一間詢價廠商開始</h2><p>新增廠商後，點一下方框就能確認完成；<br>再次點選，即可取消勾選。</p><button class="btn primary add-vendor"><svg><use href="#i-plus"/></svg>新增第一間廠商</button></div>
+    <div id="no-results" class="no-results hidden"><svg><use href="#i-search"/></svg><h2>沒有符合的廠商</h2><p>試試其他關鍵字，或切換為全部廠商。</p><button class="btn secondary" id="reset-filter">顯示全部廠商</button></div>
+    <footer class="table-footer"><span id="results-count">共 0 間廠商</span><span><span class="legend-check">✓</span>勾選會自動記錄日期，再點一次取消</span></footer>
+  </section>
+  <section class="flow-guide" aria-label="操作說明"><div class="guide-heading"><span class="guide-dot"></span>你的詢價確認流程</div><div class="flow-steps"><span><svg><use href="#i-mail"/></svg>寄出詢價信</span><svg class="flow-arrow"><use href="#i-arrow"/></svg><span><svg><use href="#i-phone"/></svg>確認對方收信</span><svg class="flow-arrow"><use href="#i-arrow"/></svg><span><svg><use href="#i-clock"/></svg><b id="flow-days">3</b>天內追蹤</span><svg class="flow-arrow"><use href="#i-arrow"/></svg><span><svg><use href="#i-file"/></svg>收到報價</span><svg class="flow-arrow"><use href="#i-arrow"/></svg><span><svg><use href="#i-check"/></svg>回填彙整表</span></div><p>「已追蹤」代表已確認回覆進度；收到報價單後，請另外勾選「已收到報價」。</p></section>
+  <div class="page-footer"><span>把進度留下，把遺漏減少。</span><span id="storage-footer">自動儲存於此瀏覽器 · 不跨裝置同步</span></div>
+</main></div>
+<dialog id="vendor-dialog" aria-labelledby="dialog-title"><form id="vendor-form"><div class="dialog-header"><div><span class="eyebrow">VENDOR DETAILS</span><h2 id="dialog-title">新增詢價廠商</h2></div><button type="button" class="close-dialog" aria-label="關閉">×</button></div><div class="dialog-body"><input type="hidden" name="id"><label>廠商名稱 <span class="required">*</span><input name="name" list="vendor-name-options" required maxlength="160" placeholder="輸入廠商名稱，或選取已儲存的廠商" autocomplete="off" aria-describedby="vendor-memory-status"><datalist id="vendor-name-options"></datalist><small id="vendor-memory-status" class="vendor-memory-status" role="status">儲存後會記住聯絡資訊，下次輸入名稱即可帶入。</small></label><label>分類<input name="category" list="category-options" maxlength="300" placeholder="選擇或自行輸入，例如：水電工程"><datalist id="category-options"></datalist><small class="field-hint">同類廠商填相同分類；留空時會放在「未分類」。</small></label><div class="form-grid"><label>聯絡人<input name="contact" maxlength="100" placeholder="聯絡人姓名"></label><label>聯絡電話<input name="phone" type="tel" maxlength="80" placeholder="電話或分機"></label></div><label>電子郵件<input name="email" type="email" maxlength="200" placeholder="供應商收信地址"></label><label>備註 / 下次追蹤安排<textarea name="note" rows="3" maxlength="2000" placeholder="例如：對方表示週五回覆，需補上運費報價。"></textarea></label><label class="no-quote-option"><input type="checkbox" name="noQuote">此廠商不報價，標記為結案</label><details id="date-details"><summary>調整各步驟的完成日期</summary><p>勾選時會自動記下當天日期，也可以在這裡修正。</p><div class="form-grid" id="date-fields"></div></details></div><div class="dialog-footer"><button type="button" id="delete-vendor" class="btn danger hidden">刪除此廠商</button><div><button type="button" class="btn secondary close-dialog">取消</button><button type="submit" class="btn primary">儲存廠商</button></div></div></form></dialog>
+<dialog id="project-dialog" aria-labelledby="project-dialog-title"><form id="project-form">
+  <div class="dialog-header"><div><span class="eyebrow">NEW PROJECT</span><h2 id="project-dialog-title">新增詢價案件</h2></div><button type="button" class="close-project-dialog" aria-label="關閉新增案件視窗">×</button></div>
+  <div class="dialog-body"><p class="project-dialog-note">新增後會切換到新案件，原有案件與勾選記錄會保留。</p><label>案件名稱 <span class="required">*</span><input name="name" required maxlength="160" placeholder="例如：中山辦公室整修工程" autocomplete="off"></label><div class="form-grid"><label>投標截止日<input name="deadline" type="date"></label><label>寄信後幾天內追蹤<input name="days" type="number" min="1" max="30" step="1" value="3" required><small class="field-hint">以日曆天計算，包含週末。</small></label></div><label class="no-quote-option" id="copy-vendors-option"><input type="checkbox" name="copyVendors"><span>複製目前案件的廠商名單 <small id="copy-vendors-count"></small><small class="field-hint">只帶入名稱、分類與聯絡資料，勾選進度從頭開始。</small></span></label></div>
+  <div class="dialog-footer"><div><button type="button" class="btn secondary close-project-dialog">取消</button><button type="submit" class="btn primary"><svg><use href="#i-plus"/></svg>建立並切換案件</button></div></div>
+</form></dialog>
+<dialog id="cloud-dialog" aria-labelledby="cloud-dialog-title"><div class="dialog-header"><div><span class="eyebrow">CLOUD SYNC</span><h2 id="cloud-dialog-title">雲端同步與團隊</h2></div><button type="button" class="close-cloud-dialog" aria-label="關閉">×</button></div><div class="dialog-body" id="cloud-body"></div></dialog>
+<input type="file" id="import-file" accept=".json,application/json" hidden>
+<div class="toast hidden" id="toast" role="status"></div>
+</body></html>
