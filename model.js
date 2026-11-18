@@ -135,7 +135,7 @@
     if (workspace.projects.length >= 200) throw new Error('最多可儲存 200 個案件，請先匯出備份。');
     if (typeof id !== 'string' || !/^[\w-]{1,100}$/.test(id) || workspace.projects.some(project => project.id === id)) throw new Error('案件編號重複，請重試。');
     if (!details || typeof details.name !== 'string' || !details.name.trim()) throw new Error('請輸入案件名稱。');
-    const clean = validateState({ version: 1, project: { name: details.name.trim(), deadline: details.deadline || '', days: details.days ?? 3, title: details.title }, vendors: [] });
+    const clean = validateState({ version: 1, project: { name: details.name.trim(), deadline: details.deadline || '', days: details.days ?? 3, title: details.title, stages: details.stages || (details.collected ? { collected: details.collected } : undefined), categoryTasks: details.categoryTasks }, vendors: [] });
     const project = { id, project: clean.project, vendors: clean.vendors };
     workspace.projects.push(project);
     workspace.activeProjectId = id;

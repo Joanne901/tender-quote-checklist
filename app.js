@@ -260,7 +260,7 @@
     if (!name) { projectForm.elements.namedItem('name').setCustomValidity('請輸入案件名稱'); projectForm.reportValidity(); return; }
     try {
       const source = state;
-      state = M.addProject(workspace, { name, deadline: String(data.get('deadline') || ''), days: Number(data.get('days')) }, uid());
+      state = M.addProject(workspace, { name, collected: String(data.get('collected') || ''), deadline: String(data.get('deadline') || ''), days: Number(data.get('days')) }, uid());
       const copied = data.get('copyVendors') === 'on' ? M.copyVendorList(source, uid) : [];
       state.vendors = copied;
       resetView(); syncProjectInputs(); const stored = save(); render(); projectDialog.close();
