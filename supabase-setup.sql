@@ -68,6 +68,12 @@ create policy "team vendors" on public.vendors for all to authenticated using (p
 drop policy if exists "team vendor book" on public.vendor_book;
 create policy "team vendor book" on public.vendor_book for all to authenticated using (public.is_member()) with check (public.is_member());
 
+-- 5b) 明確授權給「已登入」角色（不依賴專案的自動開放設定；未登入者完全沒有權限）
+revoke all on public.members, public.projects, public.vendors, public.vendor_book from anon;
+grant select, insert, update, delete on public.members, public.projects, public.vendors, public.vendor_book to authenticated;
+revoke execute on function public.is_member() from public, anon;
+grant execute on function public.is_member() to authenticated;
+
 -- 6) 即時同步：有人勾選，其他人畫面馬上更新
 do $$ begin
   begin alter publication supabase_realtime add table public.projects; exception when duplicate_object then null; end;
