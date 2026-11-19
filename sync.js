@@ -13,7 +13,7 @@
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   // ---------- 資料列 <-> workspace ----------
-  const projectRow = (entry, position) => ({ id: entry.id, position, name: entry.project.name, deadline: entry.project.deadline || '', days: entry.project.days, title: entry.project.title || null, stages: entry.project.stages || {}, category_tasks: entry.project.categoryTasks || {} });
+  const projectRow = (entry, position) => ({ id: entry.id, position, name: entry.project.name, deadline: entry.project.deadline || '', days: entry.project.days, title: entry.project.title || null, stages: entry.project.stages || {}, category_tasks: entry.project.categoryTasks || {}, warranty_years: entry.project.warrantyYears ?? null });
   const vendorRow = (v, projectId, position) => ({ id: v.id, project_id: projectId, position, name: v.name, category: v.category || '', contact: v.contact || '', phone: v.phone || '', email: v.email || '', note: v.note || '', no_quote: Boolean(v.noQuote), dates: v.dates });
   const bookRow = profile => ({ key: app.M.vendorNameKey(profile.name), profile });
   const keyOf = (table, row) => table + ':' + (table === 'vendor_book' ? row.key : row.id);
@@ -39,7 +39,7 @@
       activeProjectId: projects.some(p => p.id === activeId) ? activeId : projects[0].id,
       projects: projects.slice().sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)).map(p => ({
         id: p.id,
-        project: { name: p.name, deadline: p.deadline || '', days: p.days, title: p.title || undefined, stages: p.stages || {}, categoryTasks: p.category_tasks || {} },
+        project: { name: p.name, deadline: p.deadline || '', days: p.days, title: p.title || undefined, stages: p.stages || {}, categoryTasks: p.category_tasks || {}, warrantyYears: p.warranty_years ?? null },
         vendors: byProject.get(p.id).map(v => ({ id: v.id, name: v.name, category: v.category, contact: v.contact, phone: v.phone, email: v.email, note: v.note, noQuote: v.no_quote, dates: v.dates || {} }))
       })),
       vendorBook: book.slice().sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at))).map(b => b.profile)
@@ -67,7 +67,7 @@
         if (synced.get(key) !== json) { upserts[table].push({ ...row, updated_at: new Date().toISOString(), ...(table !== 'vendor_book' ? { updated_by: session.user.email } : {}) }); sent.set(key, json); }
       }
       for (const key of synced.keys()) if (!rows.has(key)) { const [table, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)]; deletes[table].push(id); }
-      if (upserts.projects.length) await check(sb.from('projects').upsert(upserts.projects));
+      if (upserts.projects.length) await upsertProjects(upserts.projects);
       if (upserts.vendors.length) await check(sb.from('vendors').upsert(upserts.vendors));
       if (upserts.vendor_book.length) await check(sb.from('vendor_book').upsert(upserts.vendor_book));
       if (deletes.vendors.length) await check(sb.from('vendors').delete().in('id', deletes.vendors));
@@ -85,6 +85,18 @@
       if (pushAgain) { pushAgain = false; push(); }
     }
   }
+  // 資料庫若還沒新增 warranty_years 欄位，先略過保固期限，其他資料照常同步。
+  let skipWarranty = false;
+  async function upsertProjects(rows) {
+    const strip = list => list.map(row => { const out = { ...row }; delete out.warranty_years; return out; });
+    if (skipWarranty) return check(sb.from('projects').upsert(strip(rows)));
+    try { return await check(sb.from('projects').upsert(rows)); }
+    catch (error) {
+      if (!/warranty_years/.test(String(error?.message))) throw error;
+      skipWarranty = true; console.warn('資料庫尚未新增 warranty_years 欄位，保固期限暫不同步');
+      return check(sb.from('projects').upsert(strip(rows)));
+    }
+  }
   async function check(promise) { const { data, error } = await promise; if (error) throw error; return data; }
 
   // ---------- 下載與即時更新 ----------
@@ -94,6 +106,10 @@
       check(sb.from('vendors').select('*')),
       check(sb.from('vendor_book').select('*'))
     ]);
+    // 欄位尚未建立時，雲端資料沒有 warranty_years：沿用本機的保固期限，避免被清空
+    for (const row of projects) {
+      if (!('warranty_years' in row)) { skipWarranty = true; row.warranty_years = app.workspace.projects.find(p => p.id === row.id)?.project.warrantyYears ?? null; }
+    }
     return { projects, vendors, book };
   }
   const pendingLocal = (key, rows) => { const local = rows.get(key); return (local ? stable(local.row) : undefined) !== synced.get(key); };

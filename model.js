@@ -1,11 +1,10 @@
 (function (root) {
   'use strict';
+  // 廠商詢價：寄出 Email（回覆期限 = 寄出日 + 案件天數）→ 電話提醒（選用）→ 收到報價
   const steps = [
-    { key: 'sent', label: '已寄送 Email' },
-    { key: 'called', label: '電話確認收信' },
-    { key: 'followed', label: '已追蹤回覆' },
-    { key: 'received', label: '已收到報價' },
-    { key: 'filled', label: '已回填報價表' }
+    { key: 'sent', label: '已寄出 Email' },
+    { key: 'called', label: '已電話提醒' },
+    { key: 'received', label: '已收到報價' }
   ];
   // 案件層級：整個案件各做一次
   const projectStages = [
@@ -30,21 +29,27 @@
     return d.toISOString().slice(0, 10);
   }
   const due = (vendor, days) => addDays(vendor.dates.sent, days);
-  const complete = vendor => !vendor.noQuote && steps.every(step => Boolean(vendor.dates[step.key]));
+  // 保固期限：以「年」為單位的整數 0–50；未填為 null
+  function cleanWarranty(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const years = Number(value);
+    return Number.isInteger(years) && years >= 0 && years <= 50 ? years : null;
+  }
+  // 完成 = 已寄出且已收到報價（電話提醒視需要，不是必要步驟）
+  const complete = vendor => !vendor.noQuote && Boolean(vendor.dates.sent) && Boolean(vendor.dates.received);
   const overdue = (vendor, days, date = today()) => !vendor.noQuote && !vendor.dates.received && Boolean(due(vendor, days)) && due(vendor, days) < date;
   function progress(vendor, days, date = today()) {
     if (vendor.noQuote) return { label: '結案・不報價', tone: 'neutral' };
-    if (complete(vendor)) return { label: '全部已完成', tone: 'finished' };
-    if (!vendor.dates.sent) return { label: '待寄送 Email', tone: 'neutral' };
-    if (!vendor.dates.called) return { label: '待電話確認收信', tone: overdue(vendor, days, date) ? 'overdue' : 'waiting' };
-    if (overdue(vendor, days, date)) return { label: vendor.dates.followed ? '逾期待再次催覆' : '逾期未追蹤', tone: 'overdue' };
-    if (!vendor.dates.followed) return { label: '待追蹤回覆', tone: 'waiting' };
-    if (!vendor.dates.received) return { label: '等待回傳報價', tone: 'neutral' };
-    if (!vendor.dates.filled) return { label: '待回填報價表', tone: 'waiting' };
-    return { label: '待確認', tone: 'neutral' };
+    if (vendor.dates.received) return { label: '已收到報價', tone: 'finished' };
+    if (!vendor.dates.sent) return { label: '待寄出 Email', tone: 'neutral' };
+    if (overdue(vendor, days, date)) return { label: vendor.dates.called ? '逾期・已電話提醒' : '逾期・請電話提醒', tone: 'overdue' };
+    return { label: vendor.dates.called ? '已提醒，等待報價' : '等待報價', tone: 'waiting' };
   }
-  const pendingFill = vendor => !vendor.noQuote && Boolean(vendor.dates.received) && !vendor.dates.filled;
-  const attention = (vendor, days, date = today()) => !vendor.noQuote && !complete(vendor) && (!vendor.dates.sent || !vendor.dates.called || !vendor.dates.followed || overdue(vendor, days, date) || pendingFill(vendor));
+  // 等待報價：已寄出、還沒收到
+  const awaitingQuote = vendor => !vendor.noQuote && Boolean(vendor.dates.sent) && !vendor.dates.received;
+  const pendingFill = awaitingQuote;
+  // 待處理：還沒寄出，或已過回覆期限仍未收到報價
+  const attention = (vendor, days, date = today()) => !vendor.noQuote && !vendor.dates.received && (!vendor.dates.sent || overdue(vendor, days, date));
   const blankDates = () => Object.fromEntries(steps.map(step => [step.key, '']));
   const normalizeCategory = value => String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
   const categoryName = vendor => normalizeCategory(vendor.category) || '未分類';
@@ -100,7 +105,7 @@
         if (Object.values(entry).some(Boolean)) categoryTasks[key] = entry;
       }
     }
-    const project = { name: str(input.project.name, 160), deadline, days, stages, categoryTasks };
+    const project = { name: str(input.project.name, 160), deadline, days, stages, categoryTasks, warrantyYears: cleanWarranty(input.project.warrantyYears) };
     const title = str(input.project.title, 100).trim();
     if (title) project.title = title;
     return { version: 1, project, vendors };
@@ -135,7 +140,7 @@
     if (workspace.projects.length >= 200) throw new Error('最多可儲存 200 個案件，請先匯出備份。');
     if (typeof id !== 'string' || !/^[\w-]{1,100}$/.test(id) || workspace.projects.some(project => project.id === id)) throw new Error('案件編號重複，請重試。');
     if (!details || typeof details.name !== 'string' || !details.name.trim()) throw new Error('請輸入案件名稱。');
-    const clean = validateState({ version: 1, project: { name: details.name.trim(), deadline: details.deadline || '', days: details.days ?? 3, title: details.title, stages: details.stages || (details.collected ? { collected: details.collected } : undefined), categoryTasks: details.categoryTasks }, vendors: [] });
+    const clean = validateState({ version: 1, project: { name: details.name.trim(), deadline: details.deadline || '', days: details.days ?? 3, title: details.title, warrantyYears: details.warrantyYears, stages: details.stages || (details.collected ? { collected: details.collected } : undefined), categoryTasks: details.categoryTasks }, vendors: [] });
     const project = { id, project: clean.project, vendors: clean.vendors };
     workspace.projects.push(project);
     workspace.activeProjectId = id;
@@ -258,25 +263,25 @@
     for (const step of steps) counts[step.key] = stepCount(step.key);
     const prepReady = groups.every(g => prepDone(p, g.key));
     const completed = quoting.filter(complete).length;
-    const total = projectStages.length + groups.length * categorySteps.length + quoting.length * steps.length;
-    const done = projectStages.filter(s => stages[s.key]).length + counts.drawings + counts.specs + steps.reduce((t, s) => t + counts[s.key], 0);
+    // 進度百分比：電話提醒是選用步驟，不列入計算
+    const total = projectStages.length + groups.length * categorySteps.length + quoting.length * 2;
+    const done = projectStages.filter(s => stages[s.key]).length + counts.drawings + counts.specs + counts.sent + counts.received;
     let stage;
     if (!stages.collected) stage = { key: 'collected', label: '待領標', tone: 'waiting' };
     else if (!stages.split) stage = { key: 'split', label: '待拆標單', tone: 'waiting' };
     else if (!quoting.length) stage = { key: 'inquiry', label: '待新增詢價廠商', tone: 'neutral' };
     else if (completed === quoting.length) stage = { key: 'done', label: '詢價完成', tone: 'finished' };
     else if (!prepReady) stage = { key: 'inquiry', label: '詢價：拆圖說／規範中', tone: 'neutral' };
-    else if (counts.called < quoting.length) stage = { key: 'inquiry', label: '詢價：寄信與電話確認中', tone: 'neutral' };
-    else if (counts.received < quoting.length) stage = { key: 'inquiry', label: '等待廠商報價', tone: 'neutral' };
-    else stage = { key: 'inquiry', label: '待回填報價表', tone: 'waiting' };
+    else if (counts.sent < quoting.length) stage = { key: 'inquiry', label: '詢價：寄出 Email 中', tone: 'neutral' };
+    else stage = { key: 'inquiry', label: '等待廠商報價', tone: 'neutral' };
     return {
-      id: entry.id, name: p.name, deadline: p.deadline, deadlineInfo: deadlineInfo(p.deadline, date), stages, stage,
+      id: entry.id, name: p.name, deadline: p.deadline, deadlineInfo: deadlineInfo(p.deadline, date), stages, stage, warrantyYears: p.warrantyYears ?? null,
       groups: groups.length, vendors: vendors.length, quoting: quoting.length, completed, counts,
       overdue: quoting.filter(v => overdue(v, p.days, date)).length,
       percent: total ? Math.round(done / total * 100) : 0
     };
   }
   const duplicateVendor = (project, name, exceptId = '') => project.vendors.find(v => v.id !== exceptId && vendorNameKey(v.name) === vendorNameKey(name));
-  root.QuoteTracker = { steps, today, validDate, addDays, due, complete, overdue, progress, pendingFill, attention, blankDates, normalizeCategory, categoryName, categoryKey, categoryTone, groupVendors, projectTitle, validateState, workspaceFromLegacy, emptyWorkspace, validateWorkspace, currentProject, selectProject, addProject, completeProject, undoProjectCompletion, vendorNameKey, vendorProfile, buildVendorBook, rememberVendor, searchVendorBook, findRememberedVendor, removeProject, restoreProject, copyVendorList, daysBetween, deadlineInfo, duplicateVendor, projectStages, categorySteps, categoryPrep, prepDone, toggleCategoryStep, toggleStage, projectSummary };
+  root.QuoteTracker = { steps, today, validDate, addDays, due, complete, overdue, progress, pendingFill, attention, blankDates, normalizeCategory, categoryName, categoryKey, categoryTone, groupVendors, projectTitle, validateState, workspaceFromLegacy, emptyWorkspace, validateWorkspace, currentProject, selectProject, addProject, completeProject, undoProjectCompletion, vendorNameKey, vendorProfile, buildVendorBook, rememberVendor, searchVendorBook, findRememberedVendor, removeProject, restoreProject, copyVendorList, daysBetween, deadlineInfo, duplicateVendor, projectStages, categorySteps, categoryPrep, prepDone, toggleCategoryStep, toggleStage, projectSummary, awaitingQuote, cleanWarranty };
   if (typeof module !== 'undefined') module.exports = root.QuoteTracker;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

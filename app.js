@@ -92,7 +92,7 @@
     const soon = summaries.filter(s => s.deadlineInfo && s.deadlineInfo.days >= 0 && s.deadlineInfo.days <= 7).length;
     const overdueVendors = summaries.reduce((t, s) => t + s.overdue, 0);
     const stat = (label, value, note, tone = '') => `<div class="cases-stat ${tone}"><span>${label}</span><strong>${value}</strong><small>${note}</small></div>`;
-    $('#cases-stats').innerHTML = stat('全部案件', summaries.length, `進行中 ${active.length} 件`) + stat('7 天內截止', soon, '依投標截止日計算', soon ? 'waiting' : '') + stat('逾期未回覆廠商', overdueVendors, '超過追蹤期限仍未收到報價', overdueVendors ? 'overdue' : '') + stat('詢價完成', summaries.filter(s => s.stage.key === 'done').length, '所有可報價廠商五步驟完成', 'finished');
+    $('#cases-stats').innerHTML = stat('全部案件', summaries.length, `進行中 ${active.length} 件`) + stat('7 天內截止', soon, '依投標截止日計算', soon ? 'waiting' : '') + stat('逾期未回覆廠商', overdueVendors, '過了回覆期限仍未收到報價', overdueVendors ? 'overdue' : '') + stat('詢價完成', summaries.filter(s => s.stage.key === 'done').length, '所有廠商都已收到報價', 'finished');
     const pill = (label, done, total) => `<li class="${total && done === total ? 'done' : ''} ${!total ? 'empty' : ''}"><span>${label}</span><b>${total ? `${done}/${total}` : '—'}</b></li>`;
     $('#cases-list').innerHTML = summaries.map((s, index) => {
       const entry = workspace.projects.find(p => p.id === s.id), label = projectLabel(entry, workspace.projects.indexOf(entry));
@@ -101,12 +101,12 @@
       return `<article class="case-row ${s.id === workspace.activeProjectId ? 'is-current' : ''}" data-open-project="${esc(s.id)}">
         <div class="case-main">
           <div class="case-title"><strong>${esc(label)}</strong>${s.id === workspace.activeProjectId ? '<span class="case-tag">目前案件</span>' : ''}</div>
-          <div class="case-meta"><span>領標 ${ovDate(s.stages.collected)}</span><span>截止 ${ovDate(s.deadline)}</span>${s.deadlineInfo ? `<span class="deadline-badge ${s.deadlineInfo.tone}">${s.deadlineInfo.label}</span>` : ''}</div>
+          <div class="case-meta"><span>領標 ${ovDate(s.stages.collected)}</span><span>截止 ${ovDate(s.deadline)}</span>${s.warrantyYears !== null ? `<span>保固 ${s.warrantyYears} 年</span>` : ""}${s.deadlineInfo ? `<span class="deadline-badge ${s.deadlineInfo.tone}">${s.deadlineInfo.label}</span>` : ''}</div>
           <div class="mini-steps">${dot(s.stages.collected, '領標', s.stage.key === 'collected')}${dot(s.stages.split, '拆標單', s.stage.key === 'split')}${dot(inquiryOn, '詢價', !inquiryOn && s.stage.key === 'inquiry')}</div>
         </div>
         <div class="case-detail">
           <div class="case-status"><span class="badge ${s.stage.tone}">${s.stage.label}</span>${s.overdue ? `<span class="badge overdue">${s.overdue} 間逾期未回覆</span>` : ''}<span class="case-vendors">${s.groups} 個分類 · ${s.vendors} 間廠商</span></div>
-          <ul class="case-counts">${pill('拆圖說', s.counts.drawings, s.groups)}${pill('拆規範', s.counts.specs, s.groups)}${pill('寄信', s.counts.sent, s.quoting)}${pill('電話確認', s.counts.called, s.quoting)}${pill('收到報價', s.counts.received, s.quoting)}${pill('回填', s.counts.filled, s.quoting)}</ul>
+          <ul class="case-counts">${pill('拆圖說', s.counts.drawings, s.groups)}${pill('拆規範', s.counts.specs, s.groups)}${pill('寄信', s.counts.sent, s.quoting)}${pill('電話提醒', s.counts.called, s.quoting)}${pill('收到報價', s.counts.received, s.quoting)}</ul>
         </div>
         <div class="case-progress"><div class="case-percent"><strong>${s.percent}</strong>%</div><div class="case-bar" role="progressbar" aria-valuenow="${s.percent}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(label)} 整體進度"><i style="width:${s.percent}%"></i></div><div class="case-actions"><button type="button" class="btn secondary case-open" data-open-project="${esc(s.id)}">進入案件<svg><use href="#i-arrow"/></svg></button><button type="button" class="btn secondary case-delete" data-delete-project="${esc(s.id)}" aria-label="刪除案件 ${esc(label)}" title="刪除此案件"><svg><use href="#i-trash"/></svg>刪除</button></div></div>
       </article>`;
@@ -150,7 +150,7 @@
     const quoting = state.vendors.filter(v => !v.noQuote);
     const count = fn => quoting.filter(fn).length;
     const prepCount = key => groups.filter(group => M.categoryPrep(project, group.key)[key]).length;
-    const inquiryDone = groups.length > 0 && groups.every(group => M.prepDone(project, group.key)) && quoting.length > 0 && quoting.every(v => v.dates.sent && v.dates.called);
+    const inquiryDone = groups.length > 0 && groups.every(group => M.prepDone(project, group.key)) && quoting.length > 0 && quoting.every(v => v.dates.sent);
     const current = !stages.collected ? 'collected' : !stages.split ? 'split' : 'inquiry';
     const stageCard = (stage, index) => {
       const date = stages[stage.key];
@@ -158,13 +158,13 @@
     };
     const sub = (label, done, total) => `<li class="${total && done === total ? 'done' : ''}"><span>${label}</span><b>${done}/${total}</b></li>`;
     $('#stage-track').innerHTML = M.projectStages.map(stageCard).join('') +
-      `<div class="stage-card inquiry ${inquiryDone ? 'done' : ''} ${current === 'inquiry' ? 'current' : ''}"><span class="stage-no">${inquiryDone ? '✓' : 3}</span><span class="stage-text"><strong>詢價</strong><ul class="stage-subs">${sub('拆圖說', prepCount('drawings'), groups.length)}${sub('拆規範', prepCount('specs'), groups.length)}${sub('寄送 Email', count(v => v.dates.sent), quoting.length)}${sub('電話確認', count(v => v.dates.called), quoting.length)}</ul></span></div>`;
+      `<div class="stage-card inquiry ${inquiryDone ? 'done' : ''} ${current === 'inquiry' ? 'current' : ''}"><span class="stage-no">${inquiryDone ? '✓' : 3}</span><span class="stage-text"><strong>詢價</strong><ul class="stage-subs">${sub('拆圖說', prepCount('drawings'), groups.length)}${sub('拆規範', prepCount('specs'), groups.length)}${sub('寄出 Email', count(v => v.dates.sent), quoting.length)}${sub('收到報價', count(v => v.dates.received), quoting.length)}</ul></span></div>`;
   }
   function groupRows(group) {
     const collapsed = collapsedGroups.has(group.key);
     const finished = group.vendors.filter(M.complete).length;
     const pending = group.vendors.filter(v => M.attention(v, state.project.days)).length;
-    return `<tr class="group-row category-tone-${group.tone}"><th colspan="8" scope="colgroup"><div class="group-heading"><button type="button" data-group-toggle="${esc(group.key)}" aria-expanded="${!collapsed}" aria-label="${collapsed ? '展開' : '收合'} ${esc(group.name)}"><span class="group-chevron ${collapsed ? '' : 'expanded'}">›</span><span class="category-dot" aria-hidden="true"></span><span class="group-name">${esc(group.name)}</span><span class="group-vendor-count">${group.vendors.length} 間廠商</span></button><div class="group-summary">${prepChips(group)}${pending ? `<span class="group-pending">${pending} 間待處理</span>` : ''}<span>已完成 ${finished} / ${group.vendors.length}</span><button type="button" class="group-add" data-group-add="${esc(group.name)}" aria-label="在 ${esc(group.name)} 新增廠商"><svg><use href="#i-plus"/></svg>新增廠商</button></div></div></th></tr>${collapsed ? '' : group.vendors.map(row).join('')}`;
+    return `<tr class="group-row category-tone-${group.tone}"><th colspan="7" scope="colgroup"><div class="group-heading"><button type="button" data-group-toggle="${esc(group.key)}" aria-expanded="${!collapsed}" aria-label="${collapsed ? '展開' : '收合'} ${esc(group.name)}"><span class="group-chevron ${collapsed ? '' : 'expanded'}">›</span><span class="category-dot" aria-hidden="true"></span><span class="group-name">${esc(group.name)}</span><span class="group-vendor-count">${group.vendors.length} 間廠商</span></button><div class="group-summary">${prepChips(group)}${pending ? `<span class="group-pending">${pending} 間待處理</span>` : ''}<span>已完成 ${finished} / ${group.vendors.length}</span><button type="button" class="group-add" data-group-add="${esc(group.name)}" aria-label="在 ${esc(group.name)} 新增廠商"><svg><use href="#i-plus"/></svg>新增廠商</button></div></div></th></tr>${collapsed ? '' : group.vendors.map(row).join('')}`;
   }
   // 電話、Email 直接可點：手機一按就撥號，電腦開啟郵件程式。
   function contactLine(v) {
@@ -181,13 +181,16 @@
     const due = M.due(v, state.project.days);
     if (!v.noQuote && !v.dates.sent && !M.prepDone(state.project, M.categoryKey(v))) status = { label: '待拆圖說／規範', tone: 'neutral' };
     const late = M.overdue(v, state.project.days);
-    const cells = M.steps.map(step => {
+    const stepCell = step => {
       const date = v.dates[step.key];
-      const disabled = v.noQuote || (step.key === 'filled' && !v.dates.received && !date);
-      const afterDue = step.key === 'followed' && date && due && date > due;
-      return `<td><label class="step-check"><input type="checkbox" data-id="${esc(v.id)}" data-step="${step.key}" ${date ? 'checked' : ''} ${disabled ? 'disabled' : ''} aria-label="${esc(v.name)}：${step.label}${disabled && step.key === 'filled' && !v.noQuote ? '（請先勾選收到報價）' : ''}"><span class="step-date ${date ? 'done' : ''} ${afterDue ? 'late' : ''}">${date ? esc(date.slice(5).replace('-', '/')) + (afterDue ? '・逾期' : '') : '—'}</span></label></td>`;
-    }).join('');
-    return `<tr data-vendor="${esc(v.id)}"><td class="vendor-cell"><span class="vendor-name">${esc(v.name)}</span><span class="vendor-category">${esc(M.categoryName(v))}</span>${contactLine(v)}${v.note ? `<span class="vendor-note">${esc(v.note)}</span>` : ''}</td>${cells}<td><span class="badge ${status.tone}">${status.label}</span>${due && !v.noQuote && !M.complete(v) ? `<span class="due ${late ? 'overdue' : ''}">追蹤期限 ${esc(due.slice(5).replace('-', '/'))}${late ? '・逾期' : ''}</span>` : ''}</td><td><button class="row-edit" data-edit="${esc(v.id)}" aria-label="編輯 ${esc(v.name)}"><svg><use href="#i-edit"/></svg></button></td></tr>`;
+      return `<td><label class="step-check"><input type="checkbox" data-id="${esc(v.id)}" data-step="${step.key}" ${date ? 'checked' : ''} ${v.noQuote ? 'disabled' : ''} aria-label="${esc(v.name)}：${step.label}"><span class="step-date ${date ? 'done' : ''}">${date ? esc(shortDate(date)) : '—'}</span></label></td>`;
+    };
+    // 回覆期限 = 寄出日 + 案件天數（自動計算）；過期且未收到報價時變紅
+    const left = due && !v.dates.received && !v.noQuote ? M.daysBetween(M.today(), due) : null;
+    const dueCell = `<td class="due-cell">${due ? `<span class="due-date ${late ? 'overdue' : v.dates.received || v.noQuote ? 'settled' : left !== null && left <= 1 ? 'soon' : ''}">${esc(shortDate(due))}</span><small class="due-left ${late ? 'overdue' : ''}">${v.noQuote ? '不報價' : v.dates.received ? '已回覆' : late ? `逾期 ${-left} 天` : left === 0 ? '今天到期' : `剩 ${left} 天`}</small>` : '<span class="step-date">—</span>'}</td>`;
+    const [sentStep, ...restSteps] = M.steps;
+    const cells = stepCell(sentStep) + dueCell + restSteps.map(stepCell).join('');
+    return `<tr data-vendor="${esc(v.id)}"><td class="vendor-cell"><span class="vendor-name">${esc(v.name)}</span><span class="vendor-category">${esc(M.categoryName(v))}</span>${contactLine(v)}${v.note ? `<span class="vendor-note">${esc(v.note)}</span>` : ''}</td>${cells}<td><span class="badge ${status.tone}">${status.label}</span></td><td><button class="row-edit" data-edit="${esc(v.id)}" aria-label="編輯 ${esc(v.name)}"><svg><use href="#i-edit"/></svg></button></td></tr>`;
   }
   function render() {
     document.body.classList.toggle('view-cases', view === 'cases');
@@ -211,7 +214,7 @@
     Object.entries(counts).forEach(([key, value]) => { const e = $('#count-' + key); if (e) e.textContent = value; });
     $('#nav-total').textContent = counts.total; $('#nav-attention').textContent = counts.attention; $('#nav-complete').textContent = counts.complete; $('#tab-total').textContent = counts.total;
     const overdue = vs.filter(v => M.overdue(v, state.project.days)).length;
-    $('#attention-caption').textContent = overdue ? `其中 ${overdue} 間逾期尚未回覆` : '確認收信與追蹤進度';
+    $('#attention-caption').textContent = overdue ? `其中 ${overdue} 間逾期尚未回覆` : '尚未寄出，或已過回覆期限';
     $$('[data-filter]').forEach(button => { const active = view === 'case' && button.dataset.filter === filter; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
     const visible = vs.filter(matches);
     const visibleGroups = M.groupVendors(visible);
@@ -227,7 +230,7 @@
   function syncProjectInputs() {
     // 正在輸入的欄位不覆寫（例如同事那邊的更新剛好進來）
     const set = (selector, value) => { const el = $(selector); if (document.activeElement !== el) el.value = value; };
-    set('#project-name', state.project.name); set('#project-deadline', state.project.deadline); set('#follow-days', state.project.days);
+    set('#project-name', state.project.name); set('#project-deadline', state.project.deadline); set('#follow-days', state.project.days); set('#warranty-years', state.project.warrantyYears ?? '');
     set('#page-title', M.projectTitle(state.project));
     updateDocumentTitle();
   }
@@ -250,8 +253,15 @@
   $('#project-deadline').addEventListener('change', event => { state.project.deadline = M.validDate(event.target.value) ? event.target.value : ''; save(); renderDeadline(); });
   $('#follow-days').addEventListener('change', event => {
     const days = Number(event.target.value);
-    if (!Number.isInteger(days) || days < 1 || days > 30) { event.target.value = state.project.days; toast('追蹤天數請填 1 至 30 的整數'); return; }
-    state.project.days = days; save(); render(); toast(`追蹤期限已改為寄信後 ${days} 個日曆天`);
+    if (!Number.isInteger(days) || days < 1 || days > 30) { event.target.value = state.project.days; toast('回覆天數請填 1 至 30 的整數'); return; }
+    state.project.days = days; save(); render(); toast(`回覆期限已改為寄出後 ${days} 個日曆天`);
+  });
+  $('#warranty-years').addEventListener('change', event => {
+    const raw = event.target.value.trim();
+    const years = M.cleanWarranty(raw);
+    if (raw !== '' && years === null) { event.target.value = state.project.warrantyYears ?? ''; toast('保固期限請填 0 至 50 的整數（年）'); return; }
+    state.project.warrantyYears = years; save(); render();
+    toast(years === null ? '已清除保固期限' : `保固期限已設為 ${years} 年`);
   });
   $('#project-select').addEventListener('change', event => {
     state = M.selectProject(workspace, event.target.value);
@@ -318,7 +328,7 @@
     if (!name) { projectForm.elements.namedItem('name').setCustomValidity('請輸入案件名稱'); projectForm.reportValidity(); return; }
     try {
       const source = state;
-      state = M.addProject(workspace, { name, collected: String(data.get('collected') || ''), deadline: String(data.get('deadline') || ''), days: Number(data.get('days')) }, uid());
+      state = M.addProject(workspace, { name, collected: String(data.get('collected') || ''), deadline: String(data.get('deadline') || ''), days: Number(data.get('days')), warrantyYears: M.cleanWarranty(data.get('warranty')) }, uid());
       const copied = data.get('copyVendors') === 'on' ? M.copyVendorList(source, uid) : [];
       state.vendors = copied;
       resetView(); syncProjectInputs(); const stored = save(); projectDialog.close();
@@ -346,7 +356,6 @@
     if (!input.matches('input[data-step]')) return;
     const vendor = state.vendors.find(v => v.id === input.dataset.id);
     if (!vendor || vendor.noQuote) return;
-    if (input.dataset.step === 'filled' && input.checked && !vendor.dates.received) { render(); toast('請先確認已收到報價單'); return; }
     bulkUndo.delete(state.id);
     vendor.dates[input.dataset.step] = input.checked ? M.today() : '';
     const focusId = vendor.id, focusStep = input.dataset.step;
@@ -468,7 +477,6 @@
     const data = new FormData(form), name = String(data.get('name')).trim();
     if (!name) { form.elements.namedItem('name').setCustomValidity('請輸入廠商名稱'); form.reportValidity(); return; }
     const dates = Object.fromEntries(M.steps.map(step => [step.key, String(data.get('date-' + step.key) || '')]));
-    if (dates.filled && !dates.received) { $('#date-details').open = true; toast('已有回填日期，請同時填寫收到報價日期'); form.elements.namedItem('date-received').focus(); return; }
     const existingId = String(data.get('id') || '');
     const twin = M.duplicateVendor(state, name, existingId);
     if (twin && !confirm(`本案件已經有「${twin.name}」（${M.categoryName(twin)}），仍要${existingId ? '儲存' : '再新增一筆'}嗎？`)) { form.elements.namedItem('name').focus(); return; }
@@ -520,10 +528,10 @@
   $('#export-csv').addEventListener('click', () => {
     const csvCell = value => { let text = String(value ?? ''); if (/^[\t\r\n ]*[=+@-]/.test(text)) text = "'" + text; return '"' + text.replace(/"/g, '""') + '"'; };
     const stages = state.project.stages || {};
-    const rows = [['標案名稱','投標截止日',...M.projectStages.map(s => s.label + '日期'),'分類',...M.categorySteps.map(s => s.label + '日期'),'廠商名稱','聯絡人','電話','電子郵件',...M.steps.map(s => s.label + '日期'),'追蹤期限','目前進度','備註']];
+    const rows = [['標案名稱','投標截止日','保固期限（年）',...M.projectStages.map(s => s.label + '日期'),'分類',...M.categorySteps.map(s => s.label + '日期'),'廠商名稱','聯絡人','電話','電子郵件',...M.steps.map(s => s.label + '日期'),'回覆期限','目前進度','備註']];
     for (const group of M.groupVendors(state.vendors)) {
       const prep = M.categoryPrep(state.project, group.key);
-      for (const v of group.vendors) rows.push([state.project.name,state.project.deadline,...M.projectStages.map(s => stages[s.key] || ''),M.categoryName(v),...M.categorySteps.map(s => prep[s.key]),v.name,v.contact,v.phone,v.email,...M.steps.map(s => v.dates[s.key]),M.due(v,state.project.days),M.progress(v,state.project.days).label,v.note]);
+      for (const v of group.vendors) rows.push([state.project.name,state.project.deadline,state.project.warrantyYears ?? '',...M.projectStages.map(s => stages[s.key] || ''),M.categoryName(v),...M.categorySteps.map(s => prep[s.key]),v.name,v.contact,v.phone,v.email,...M.steps.map(s => v.dates[s.key]),M.due(v,state.project.days),M.progress(v,state.project.days).label,v.note]);
     }
     download('\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n'), `廠商詢價追蹤表-${M.today()}.csv`, 'text/csv;charset=utf-8;');
     toast('試算表已匯出，可用 Excel 開啟');

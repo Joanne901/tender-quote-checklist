@@ -197,3 +197,16 @@ body.view-cases .page-heading,body.view-cases .project-switcher,body.view-cases 
 .case-delete:hover{background:#fbede7;border-color:#efcfc3;color:var(--red)}
 @media(max-width:600px){.case-progress{flex-wrap:wrap}.case-actions{width:100%}.switcher-actions{flex-wrap:wrap}.switcher-actions .btn{flex:1}}
 @media print{.case-delete{display:none!important}}
+/* ===== v14 簡化詢價：寄出 Email + 回覆期限 + 電話提醒 + 收到報價；保固期限 ===== */
+th.due-col{color:#8a6a3a}
+.due-cell{text-align:center}
+.due-date{display:inline-block;font-size:13px;font-weight:600;color:var(--ink);padding:2px 8px;border-radius:5px;background:#f1f4ef}
+.due-date.soon{background:#fbf3e1;color:var(--amber)}
+.due-date.overdue{background:#fbede7;color:var(--red)}
+.due-date.settled{background:transparent;color:#8a958a;font-weight:500}
+.due-left{display:block;margin-top:4px;font-size:11px;color:#8a958a}
+.due-left.overdue{color:var(--red);font-weight:600}
+.warranty-setting input{width:34px}
+.case-counts{grid-template-columns:repeat(5,minmax(0,1fr))}
+@media(max-width:1250px){.case-counts{grid-template-columns:repeat(5,minmax(0,1fr))}.warranty-setting{width:110px}}
+@media(max-width:600px){.case-counts{grid-template-columns:repeat(3,minmax(0,1fr))}.warranty-setting{padding-left:0;border-left:0}}
