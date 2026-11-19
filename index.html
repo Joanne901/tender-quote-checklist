@@ -8,9 +8,9 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=13">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" defer></script>
-  <script src="model.js?v=12" defer></script><script src="config.js?v=12" defer></script><script src="sync.js?v=12" defer></script><script src="app.js?v=12" defer></script>
+  <script src="model.js?v=13" defer></script><script src="config.js?v=13" defer></script><script src="sync.js?v=13" defer></script><script src="app.js?v=13" defer></script>
 </head>
 <body>
 <svg aria-hidden="true" class="sprite" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -46,7 +46,7 @@
 <main>
   <div id="storage-warning" class="warning hidden" role="alert"></div>
   <div id="backup-reminder" class="backup-reminder hidden" role="status"><svg aria-hidden="true"><use href="#i-download"/></svg><p id="backup-reminder-text">資料只存在這個瀏覽器，建議下載備份。</p><div><button type="button" class="btn primary" id="backup-now">立即下載備份</button><button type="button" class="link-btn" id="backup-snooze">今天不再提醒</button></div></div>
-  <section id="cases-overview" class="cases-overview" aria-labelledby="cases-title"><div class="cases-head"><div><div class="eyebrow">ALL PROJECTS</div><h1 id="cases-title">所有案件進度</h1><p>依投標截止日排序（快截止的在前），點任一案件即可進入勾選。</p></div><div class="heading-actions"><button type="button" class="btn secondary" id="cases-back"><svg><use href="#i-grid"/></svg>回到目前案件</button><button type="button" class="btn primary" id="cases-add-project"><svg><use href="#i-plus"/></svg>新增案件</button></div></div><div id="cases-stats" class="cases-stats"></div><div id="cases-list" class="cases-list"></div></section>
+  <section id="cases-overview" class="cases-overview" aria-labelledby="cases-title"><div class="cases-head"><div><div class="eyebrow">ALL PROJECTS</div><h1 id="cases-title">所有案件進度</h1><p>依領標日排序（早領標的在上），點任一案件即可進入勾選。</p></div><div class="heading-actions"><button type="button" class="btn secondary" id="cases-back"><svg><use href="#i-grid"/></svg>回到目前案件</button><button type="button" class="btn primary" id="cases-add-project"><svg><use href="#i-plus"/></svg>新增案件</button></div></div><div id="cases-stats" class="cases-stats"></div><div id="cases-list" class="cases-list"></div></section>
   <section class="page-heading"><div><div class="eyebrow">VENDOR CHECKLIST</div><h1 class="editable-heading"><input type="text" id="page-title" value="詢價確認表" maxlength="100" autocomplete="off" aria-label="大標題名稱，可直接修改並自動儲存"><svg class="title-edit-icon" aria-hidden="true"><use href="#i-edit"/></svg></h1><span class="title-edit-hint">點選大標題即可修改，自動儲存。</span><p>從寄出詢價到報價回填，每一步都確認到位。</p></div><div class="heading-actions"><div class="export-wrap"><button id="export-toggle" class="btn secondary" aria-expanded="false" aria-controls="export-menu"><svg><use href="#i-download"/></svg>匯出與備份</button><div id="export-menu" class="export-menu hidden"><button id="export-csv">匯出目前案件 CSV</button><button id="backup">下載案件與廠商完整備份</button><button id="import">匯入案件備份</button><button id="print-list">列印目前清單</button></div></div><button class="btn primary add-vendor"><svg><use href="#i-plus"/></svg>新增廠商</button></div></section>
   <section class="project-switcher" aria-label="選擇與新增案件">
     <div class="switcher-icon"><svg><use href="#i-file"/></svg></div>

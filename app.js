@@ -78,10 +78,16 @@
     render(); window.scrollTo({ top: 0 });
   }
   const ovDate = date => date ? date.slice(5).replace('-', '/') : '—';
+  // 案件排序：依領標日由早到晚；沒填領標日的放最後（依建立順序）
+  function sortedProjects() {
+    return workspace.projects.map((entry, index) => ({ entry, index, date: entry.project.stages?.collected || '' }))
+      .sort((a, b) => (a.date ? 0 : 1) - (b.date ? 0 : 1) || a.date.localeCompare(b.date) || a.index - b.index)
+      .map(item => item.entry);
+  }
   function renderOverview() {
     const date = M.today();
-    const rank = s => s.deadlineInfo ? (s.deadlineInfo.days >= 0 ? s.deadlineInfo.days : 100000 - s.deadlineInfo.days) : 50000;
-    const summaries = workspace.projects.map(entry => M.projectSummary(entry, date)).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'zh-TW'));
+    const order = new Map(sortedProjects().map((entry, i) => [entry.id, i]));
+    const summaries = workspace.projects.map(entry => M.projectSummary(entry, date)).sort((a, b) => order.get(a.id) - order.get(b.id));
     const active = summaries.filter(s => s.stage.key !== 'done' && !(s.deadlineInfo && s.deadlineInfo.days < 0));
     const soon = summaries.filter(s => s.deadlineInfo && s.deadlineInfo.days >= 0 && s.deadlineInfo.days <= 7).length;
     const overdueVendors = summaries.reduce((t, s) => t + s.overdue, 0);
@@ -112,7 +118,7 @@
   function projectLabel(project, index) { return project.project.name.trim() || `未命名案件 ${index + 1}`; }
   function renderProjectSelector() {
     const select = $('#project-select');
-    const next = workspace.projects.map((entry, index) => `<option value="${esc(entry.id)}">${esc(projectLabel(entry, index))}（${entry.vendors.length} 間廠商）</option>`).join('');
+    const next = sortedProjects().map(entry => `<option value="${esc(entry.id)}">${esc(projectLabel(entry, workspace.projects.indexOf(entry)))}（${entry.vendors.length} 間廠商）</option>`).join('');
     if (select.innerHTML !== next) select.innerHTML = next;
     select.value = workspace.activeProjectId;
     $('#project-count').textContent = `共 ${workspace.projects.length} 個案件`;
