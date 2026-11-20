@@ -165,41 +165,58 @@
       if (!isMember) { setMode('not-member'); return; }
       const data = await fetchAll();
       synced = new Map();
+      const local = app.workspace;
+      const meaningful = entry => entry.vendors.length > 0 || entry.project.name.trim() !== '' || Object.values(entry.project.stages || {}).some(Boolean);
+      // 這台裝置的案件 + 之前登入時另存的本機備份（例如當時選了「取消」）
+      const saved = readLocalCopy();
+      const fromSaved = saved ? saved.projects.filter(p => meaningful(p) && !local.projects.some(q => q.id === p.id)) : [];
+      const candidates = [...local.projects.filter(meaningful), ...fromSaved];
+      const extraBook = [...(local.vendorBook || []), ...(saved?.vendorBook || [])];
+      const describe = list => list.slice(0, 6).map(p => `・${p.project.name.trim() || '未命名案件'}（${p.vendors.length} 間廠商）`).join('\n') + (list.length > 6 ? `\n…等 ${list.length} 個` : '');
+      const declined = () => { if (saved) dismissLocalCopy(); else if (local.projects.some(meaningful)) saveLocalCopy(); };
       if (!data.projects.length) {
-        const local = app.workspace, vendorsCount = local.projects.reduce((t, p) => t + p.vendors.length, 0);
-        const upload = vendorsCount === 0 || confirm(`雲端目前還沒有資料。\n要把這台裝置上的 ${local.projects.length} 個案件、${vendorsCount} 間廠商上傳，讓團隊一起使用嗎？\n（選「取消」會從空白開始，這台裝置的資料仍可從「匯出與備份」下載）`);
-        if (!upload) { saveLocalCopy(); app.replaceWorkspace(app.M.emptyWorkspace(), { initial: true }); }
+        if (candidates.length && confirm(`雲端目前還沒有資料。這台裝置有 ${candidates.length} 個案件：\n${describe(candidates)}\n\n要上傳到雲端，讓團隊一起使用嗎？\n（選「取消」會從空白開始，原資料另存在這台裝置）`)) {
+          const merged = { ...local, projects: candidates, vendorBook: app.M.buildVendorBook(candidates, extraBook) };
+          if (!candidates.some(p => p.id === merged.activeProjectId)) merged.activeProjectId = candidates[0].id;
+          app.replaceWorkspace(merged, { initial: true }); clearLocalCopy();
+        } else if (candidates.length) { declined(); app.replaceWorkspace(app.M.emptyWorkspace(), { initial: true }); }
         setMode('syncing'); await push();
       } else {
-        const local = app.workspace;
-        if (local.projects.some(p => p.vendors.length)) saveLocalCopy();
         data.projects.forEach(r => synced.set(keyOf('projects', r), stable(clean(r))));
         data.vendors.forEach(r => synced.set(keyOf('vendors', r), stable(clean(r))));
         data.book.forEach(r => synced.set(keyOf('vendor_book', r), stable({ key: r.key, profile: r.profile })));
         const liveVendors = data.vendors.filter(v => data.projects.some(p => p.id === v.project_id));
         const next = workspaceFromRows(data.projects, liveVendors, data.book, local.activeProjectId);
-        // 合併：這台裝置上「雲端還沒有」的案件，詢問後一起上傳；雲端只有空白案件時順手移除
-        const meaningful = entry => entry.vendors.length > 0 || entry.project.name.trim() !== '' || Object.values(entry.project.stages || {}).some(Boolean);
+        // 合併：雲端還沒有的案件，詢問後一起上傳；雲端只有空白案件時順手移除
         const cloudIds = new Set(next.projects.map(p => p.id));
-        const localOnly = local.projects.filter(p => !cloudIds.has(p.id) && meaningful(p));
+        const localOnly = candidates.filter(p => !cloudIds.has(p.id));
         if (localOnly.length) {
-          const vendorCount = localOnly.reduce((t, p) => t + p.vendors.length, 0);
-          const names = localOnly.slice(0, 5).map(p => '・' + (p.project.name.trim() || '未命名案件')).join('\n') + (localOnly.length > 5 ? `\n…等 ${localOnly.length} 個` : '');
-          if (confirm(`這台裝置有 ${localOnly.length} 個案件（${vendorCount} 間廠商）還沒在雲端：\n${names}\n\n要一起上傳，和團隊共用嗎？\n（選「取消」只顯示雲端資料，這台裝置的原資料會另存備份）`)) {
+          if (confirm(`這台裝置有 ${localOnly.length} 個案件還沒在雲端：\n${describe(localOnly)}\n\n要一起上傳，和團隊共用嗎？\n（選「取消」只顯示雲端資料，原資料另存在這台裝置）`)) {
             next.projects = [...next.projects.filter(meaningful), ...localOnly];
-            next.vendorBook = app.M.buildVendorBook(next.projects, [...next.vendorBook, ...(local.vendorBook || [])]);
-            if (!next.projects.some(p => p.id === next.activeProjectId)) next.activeProjectId = local.projects.some(p => p.id === local.activeProjectId && localOnly.includes(p)) ? local.activeProjectId : next.projects[0].id;
-          }
+            next.vendorBook = app.M.buildVendorBook(next.projects, [...next.vendorBook, ...extraBook]);
+            if (!next.projects.some(p => p.id === next.activeProjectId)) next.activeProjectId = localOnly.some(p => p.id === local.activeProjectId) ? local.activeProjectId : next.projects[0].id;
+            clearLocalCopy();
+          } else declined();
         }
         app.replaceWorkspace(next, { initial: true });
         setMode('synced');
-        schedule(); // 若資料經過格式整理而與雲端略有差異，順手補上傳
+        schedule(); // 上傳合併進來的案件，或格式整理後的小差異
       }
       subscribe();
     } catch (error) { console.error(error); setMode('error', error); }
   }
   function stop() { if (channel && sb) sb.removeChannel(channel); channel = null; synced = new Map(); clearTimeout(pushTimer); }
-  function saveLocalCopy() { try { localStorage.setItem(LOCAL_COPY_KEY, JSON.stringify(app.workspace)); } catch (error) { /* 略過 */ } }
+  // 本機備份：登入時選「取消」上傳的資料先存在這台裝置，下次登入會再詢問是否合併
+  function saveLocalCopy() { try { localStorage.setItem(LOCAL_COPY_KEY, JSON.stringify(app.workspace)); localStorage.removeItem(LOCAL_COPY_KEY + '-dismissed'); } catch (error) { /* 略過 */ } }
+  function readLocalCopy() {
+    try {
+      if (localStorage.getItem(LOCAL_COPY_KEY + '-dismissed') === '1') return null;
+      const raw = localStorage.getItem(LOCAL_COPY_KEY);
+      return raw ? app.M.validateWorkspace(JSON.parse(raw)) : null;
+    } catch (error) { return null; }
+  }
+  function clearLocalCopy() { try { localStorage.removeItem(LOCAL_COPY_KEY); localStorage.removeItem(LOCAL_COPY_KEY + '-dismissed'); } catch (error) { /* 略過 */ } }
+  function dismissLocalCopy() { try { localStorage.setItem(LOCAL_COPY_KEY + '-dismissed', '1'); } catch (error) { /* 略過 */ } }
 
   // ---------- 畫面 ----------
   const labels = {
