@@ -80,7 +80,7 @@
   const ovDate = date => date ? date.slice(5).replace('-', '/') : '—';
   // 案件排序：依領標日由早到晚；沒填領標日的放最後（依建立順序）
   function sortedProjects() {
-    return workspace.projects.map((entry, index) => ({ entry, index, date: entry.project.stages?.collected || '' }))
+    return workspace.projects.map((entry, index) => ({ entry, index, date: entry.project.stages?.collected ? entry.project.stages.collected + ' ' + (entry.project.stages.collectedTime || '') : '' }))
       .sort((a, b) => (a.date ? 0 : 1) - (b.date ? 0 : 1) || a.date.localeCompare(b.date) || a.index - b.index)
       .map(item => item.entry);
   }
@@ -101,7 +101,7 @@
       return `<article class="case-row ${s.id === workspace.activeProjectId ? 'is-current' : ''}" data-open-project="${esc(s.id)}">
         <div class="case-main">
           <div class="case-title"><strong>${esc(label)}</strong>${s.id === workspace.activeProjectId ? '<span class="case-tag">目前案件</span>' : ''}</div>
-          <div class="case-meta"><span>領標 ${ovDate(s.stages.collected)}</span><span>截止 ${ovDate(s.deadline)}</span>${s.warrantyYears !== null ? `<span>保固 ${s.warrantyYears} 年</span>` : ""}${s.deadlineInfo ? `<span class="deadline-badge ${s.deadlineInfo.tone}">${s.deadlineInfo.label}</span>` : ''}</div>
+          <div class="case-meta"><span>領標 ${ovDate(s.stages.collected)}${s.stages.collectedTime ? " " + s.stages.collectedTime : ""}</span><span>截止 ${ovDate(s.deadline)}</span>${s.warrantyYears !== null ? `<span>保固 ${s.warrantyYears} 年</span>` : ""}${s.deadlineInfo ? `<span class="deadline-badge ${s.deadlineInfo.tone}">${s.deadlineInfo.label}</span>` : ''}</div>
           <div class="mini-steps">${dot(s.stages.collected, '領標', s.stage.key === 'collected')}${dot(s.stages.split, '拆標單', s.stage.key === 'split')}${dot(inquiryOn, '詢價', !inquiryOn && s.stage.key === 'inquiry')}</div>
         </div>
         <div class="case-detail">
@@ -146,6 +146,10 @@
   function renderStages() {
     const project = state.project;
     const stages = { collected: '', split: '', ...(project.stages || {}) };
+    // 點流程卡勾選領標時，同步更新案件卡上的領標日期時間欄位
+    const ci = $('#project-collected'), ct = $('#project-collected-time');
+    if (document.activeElement !== ci) ci.value = stages.collected || '';
+    if (document.activeElement !== ct) ct.value = stages.collectedTime || '';
     const groups = M.groupVendors(state.vendors);
     const quoting = state.vendors.filter(v => !v.noQuote);
     const count = fn => quoting.filter(fn).length;
@@ -154,7 +158,7 @@
     const current = !stages.collected ? 'collected' : !stages.split ? 'split' : 'inquiry';
     const stageCard = (stage, index) => {
       const date = stages[stage.key];
-      return `<button type="button" class="stage-card ${date ? 'done' : ''} ${current === stage.key ? 'current' : ''}" data-stage="${stage.key}" aria-pressed="${Boolean(date)}"><span class="stage-no">${date ? '✓' : index + 1}</span><span class="stage-text"><strong>${stage.label}</strong><small>${date ? `${shortDate(date)} 完成` : current === stage.key ? '目前步驟 · 點一下完成' : '尚未完成'}</small></span></button>`;
+      return `<button type="button" class="stage-card ${date ? 'done' : ''} ${current === stage.key ? 'current' : ''}" data-stage="${stage.key}" aria-pressed="${Boolean(date)}"><span class="stage-no">${date ? '✓' : index + 1}</span><span class="stage-text"><strong>${stage.label}</strong><small>${date ? `${shortDate(date)}${stage.key === "collected" && stages.collectedTime ? " " + stages.collectedTime : ""} 完成` : current === stage.key ? '目前步驟 · 點一下完成' : '尚未完成'}</small></span></button>`;
     };
     const sub = (label, done, total) => `<li class="${total && done === total ? 'done' : ''}"><span>${label}</span><b>${done}/${total}</b></li>`;
     $('#stage-track').innerHTML = M.projectStages.map(stageCard).join('') +
@@ -230,7 +234,7 @@
   function syncProjectInputs() {
     // 正在輸入的欄位不覆寫（例如同事那邊的更新剛好進來）
     const set = (selector, value) => { const el = $(selector); if (document.activeElement !== el) el.value = value; };
-    set('#project-name', state.project.name); set('#project-deadline', state.project.deadline); set('#follow-days', state.project.days); set('#warranty-years', state.project.warrantyYears ?? '');
+    set('#project-name', state.project.name); set('#project-deadline', state.project.deadline); set('#follow-days', state.project.days); set('#warranty-years', state.project.warrantyYears ?? ''); set('#project-collected', state.project.stages?.collected || ''); set('#project-collected-time', state.project.stages?.collectedTime || '');
     set('#page-title', M.projectTitle(state.project));
     updateDocumentTitle();
   }
@@ -262,6 +266,23 @@
     if (raw !== '' && years === null) { event.target.value = state.project.warrantyYears ?? ''; toast('保固期限請填 0 至 50 的整數（年）'); return; }
     state.project.warrantyYears = years; save(); render();
     toast(years === null ? '已清除保固期限' : `保固期限已設為 ${years} 年`);
+  });
+  // 案件卡的「領標日期時間」：改日期等同勾選／取消「① 領標」
+  $('#project-collected').addEventListener('change', event => {
+    const date = event.target.value;
+    const stages = { collected: '', split: '', ...(state.project.stages || {}) };
+    if (M.validDate(date)) stages.collected = date;
+    else { stages.collected = ''; delete stages.collectedTime; }
+    state.project.stages = stages; save(); render();
+    toast(stages.collected ? `領標日已設為 ${date}` : '已清除領標日');
+  });
+  $('#project-collected-time').addEventListener('change', event => {
+    const time = event.target.value;
+    const stages = { collected: '', split: '', ...(state.project.stages || {}) };
+    if (time && !stages.collected) { event.target.value = ''; toast('請先填入領標日，再填時間'); return; }
+    if (M.validTime(time)) stages.collectedTime = time; else delete stages.collectedTime;
+    state.project.stages = stages; save(); render();
+    toast(stages.collectedTime ? `領標時間已設為 ${time}` : '已清除領標時間');
   });
   $('#project-select').addEventListener('change', event => {
     state = M.selectProject(workspace, event.target.value);
@@ -328,7 +349,7 @@
     if (!name) { projectForm.elements.namedItem('name').setCustomValidity('請輸入案件名稱'); projectForm.reportValidity(); return; }
     try {
       const source = state;
-      state = M.addProject(workspace, { name, collected: String(data.get('collected') || ''), deadline: String(data.get('deadline') || ''), days: Number(data.get('days')), warrantyYears: M.cleanWarranty(data.get('warranty')) }, uid());
+      state = M.addProject(workspace, { name, collected: String(data.get('collected') || ''), collectedTime: M.validTime(String(data.get('collectedTime') || '')) ? String(data.get('collectedTime')) : '', deadline: String(data.get('deadline') || ''), days: Number(data.get('days')), warrantyYears: M.cleanWarranty(data.get('warranty')) }, uid());
       const copied = data.get('copyVendors') === 'on' ? M.copyVendorList(source, uid) : [];
       state.vendors = copied;
       resetView(); syncProjectInputs(); const stored = save(); projectDialog.close();
@@ -528,10 +549,10 @@
   $('#export-csv').addEventListener('click', () => {
     const csvCell = value => { let text = String(value ?? ''); if (/^[\t\r\n ]*[=+@-]/.test(text)) text = "'" + text; return '"' + text.replace(/"/g, '""') + '"'; };
     const stages = state.project.stages || {};
-    const rows = [['標案名稱','投標截止日','保固期限（年）',...M.projectStages.map(s => s.label + '日期'),'分類',...M.categorySteps.map(s => s.label + '日期'),'廠商名稱','聯絡人','電話','電子郵件',...M.steps.map(s => s.label + '日期'),'回覆期限','目前進度','備註']];
+    const rows = [['標案名稱','投標截止日','保固期限（年）',...M.projectStages.map(s => s.label + '日期'),'領標時間','分類',...M.categorySteps.map(s => s.label + '日期'),'廠商名稱','聯絡人','電話','電子郵件',...M.steps.map(s => s.label + '日期'),'回覆期限','目前進度','備註']];
     for (const group of M.groupVendors(state.vendors)) {
       const prep = M.categoryPrep(state.project, group.key);
-      for (const v of group.vendors) rows.push([state.project.name,state.project.deadline,state.project.warrantyYears ?? '',...M.projectStages.map(s => stages[s.key] || ''),M.categoryName(v),...M.categorySteps.map(s => prep[s.key]),v.name,v.contact,v.phone,v.email,...M.steps.map(s => v.dates[s.key]),M.due(v,state.project.days),M.progress(v,state.project.days).label,v.note]);
+      for (const v of group.vendors) rows.push([state.project.name,state.project.deadline,state.project.warrantyYears ?? '',...M.projectStages.map(s => stages[s.key] || ''),stages.collectedTime || '',M.categoryName(v),...M.categorySteps.map(s => prep[s.key]),v.name,v.contact,v.phone,v.email,...M.steps.map(s => v.dates[s.key]),M.due(v,state.project.days),M.progress(v,state.project.days).label,v.note]);
     }
     download('\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n'), `廠商詢價追蹤表-${M.today()}.csv`, 'text/csv;charset=utf-8;');
     toast('試算表已匯出，可用 Excel 開啟');

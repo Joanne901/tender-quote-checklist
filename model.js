@@ -29,6 +29,7 @@
     return d.toISOString().slice(0, 10);
   }
   const due = (vendor, days) => addDays(vendor.dates.sent, days);
+  const validTime = value => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
   // 保固期限：以「年」為單位的整數 0–50；未填為 null
   function cleanWarranty(value) {
     if (value === null || value === undefined || value === '') return null;
@@ -94,6 +95,8 @@
     if (deadline && !validDate(deadline)) throw new Error('投標截止日期格式不正確。');
     const stages = {};
     for (const stage of projectStages) { const value = input.project.stages?.[stage.key]; stages[stage.key] = validDate(value) ? value : ''; }
+    // 領標時間（HH:MM），跟著領標日一起存在 stages 裡
+    if (stages.collected && validTime(input.project.stages?.collectedTime)) stages.collectedTime = input.project.stages.collectedTime;
     const categoryTasks = {};
     const rawTasks = input.project.categoryTasks;
     if (rawTasks && typeof rawTasks === 'object' && !Array.isArray(rawTasks)) {
@@ -140,7 +143,7 @@
     if (workspace.projects.length >= 200) throw new Error('最多可儲存 200 個案件，請先匯出備份。');
     if (typeof id !== 'string' || !/^[\w-]{1,100}$/.test(id) || workspace.projects.some(project => project.id === id)) throw new Error('案件編號重複，請重試。');
     if (!details || typeof details.name !== 'string' || !details.name.trim()) throw new Error('請輸入案件名稱。');
-    const clean = validateState({ version: 1, project: { name: details.name.trim(), deadline: details.deadline || '', days: details.days ?? 3, title: details.title, warrantyYears: details.warrantyYears, stages: details.stages || (details.collected ? { collected: details.collected } : undefined), categoryTasks: details.categoryTasks }, vendors: [] });
+    const clean = validateState({ version: 1, project: { name: details.name.trim(), deadline: details.deadline || '', days: details.days ?? 3, title: details.title, warrantyYears: details.warrantyYears, stages: details.stages || (details.collected ? { collected: details.collected, collectedTime: details.collectedTime || undefined } : undefined), categoryTasks: details.categoryTasks }, vendors: [] });
     const project = { id, project: clean.project, vendors: clean.vendors };
     workspace.projects.push(project);
     workspace.activeProjectId = id;
@@ -250,6 +253,7 @@
     if (!projectStages.some(s => s.key === stage)) throw new Error('未知的案件步驟。');
     project.stages = { ...Object.fromEntries(projectStages.map(s => [s.key, ''])), ...(project.stages || {}) };
     project.stages[stage] = project.stages[stage] ? '' : date;
+    if (stage === 'collected' && !project.stages.collected) delete project.stages.collectedTime;
     return project.stages[stage];
   }
   // 所有案件進度頁：每個案件的流程階段、各步驟完成數與整體百分比
@@ -282,6 +286,6 @@
     };
   }
   const duplicateVendor = (project, name, exceptId = '') => project.vendors.find(v => v.id !== exceptId && vendorNameKey(v.name) === vendorNameKey(name));
-  root.QuoteTracker = { steps, today, validDate, addDays, due, complete, overdue, progress, pendingFill, attention, blankDates, normalizeCategory, categoryName, categoryKey, categoryTone, groupVendors, projectTitle, validateState, workspaceFromLegacy, emptyWorkspace, validateWorkspace, currentProject, selectProject, addProject, completeProject, undoProjectCompletion, vendorNameKey, vendorProfile, buildVendorBook, rememberVendor, searchVendorBook, findRememberedVendor, removeProject, restoreProject, copyVendorList, daysBetween, deadlineInfo, duplicateVendor, projectStages, categorySteps, categoryPrep, prepDone, toggleCategoryStep, toggleStage, projectSummary, awaitingQuote, cleanWarranty };
+  root.QuoteTracker = { steps, today, validDate, addDays, due, complete, overdue, progress, pendingFill, attention, blankDates, normalizeCategory, categoryName, categoryKey, categoryTone, groupVendors, projectTitle, validateState, workspaceFromLegacy, emptyWorkspace, validateWorkspace, currentProject, selectProject, addProject, completeProject, undoProjectCompletion, vendorNameKey, vendorProfile, buildVendorBook, rememberVendor, searchVendorBook, findRememberedVendor, removeProject, restoreProject, copyVendorList, daysBetween, deadlineInfo, duplicateVendor, projectStages, categorySteps, categoryPrep, prepDone, toggleCategoryStep, toggleStage, projectSummary, awaitingQuote, cleanWarranty, validTime };
   if (typeof module !== 'undefined') module.exports = root.QuoteTracker;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
