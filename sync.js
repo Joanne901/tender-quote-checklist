@@ -172,14 +172,14 @@
       const fromSaved = saved ? saved.projects.filter(p => meaningful(p) && !local.projects.some(q => q.id === p.id)) : [];
       const candidates = [...local.projects.filter(meaningful), ...fromSaved];
       const extraBook = [...(local.vendorBook || []), ...(saved?.vendorBook || [])];
-      const describe = list => list.slice(0, 6).map(p => `・${p.project.name.trim() || '未命名案件'}（${p.vendors.length} 間廠商）`).join('\n') + (list.length > 6 ? `\n…等 ${list.length} 個` : '');
-      const declined = () => { if (saved) dismissLocalCopy(); else if (local.projects.some(meaningful)) saveLocalCopy(); };
+      // 一律合併、不詢問：合併只會「增加」案件，不會刪掉雲端或這台裝置上有內容的資料（只移除空白案件）
       if (!data.projects.length) {
-        if (candidates.length && confirm(`雲端目前還沒有資料。這台裝置有 ${candidates.length} 個案件：\n${describe(candidates)}\n\n要上傳到雲端，讓團隊一起使用嗎？\n（選「取消」會從空白開始，原資料另存在這台裝置）`)) {
+        if (candidates.length) {
           const merged = { ...local, projects: candidates, vendorBook: app.M.buildVendorBook(candidates, extraBook) };
           if (!candidates.some(p => p.id === merged.activeProjectId)) merged.activeProjectId = candidates[0].id;
           app.replaceWorkspace(merged, { initial: true }); clearLocalCopy();
-        } else if (candidates.length) { declined(); app.replaceWorkspace(app.M.emptyWorkspace(), { initial: true }); }
+          app.toast(`已把這台裝置的 ${candidates.length} 個案件上傳到雲端`);
+        }
         setMode('syncing'); await push();
       } else {
         data.projects.forEach(r => synced.set(keyOf('projects', r), stable(clean(r))));
@@ -187,20 +187,25 @@
         data.book.forEach(r => synced.set(keyOf('vendor_book', r), stable({ key: r.key, profile: r.profile })));
         const liveVendors = data.vendors.filter(v => data.projects.some(p => p.id === v.project_id));
         const next = workspaceFromRows(data.projects, liveVendors, data.book, local.activeProjectId);
-        // 合併：雲端還沒有的案件，詢問後一起上傳；雲端只有空白案件時順手移除
-        const cloudIds = new Set(next.projects.map(p => p.id));
+        const localById = new Map(candidates.map(p => [p.id, p]));
+        let added = 0;
+        // 同一個案件：雲端是空白、這台裝置有內容 → 用這台裝置的；兩邊都有內容 → 以雲端為準
+        const mergedCloud = next.projects.map(cp => { if (!meaningful(cp) && localById.has(cp.id)) { added++; return localById.get(cp.id); } return cp; });
+        const cloudIds = new Set(mergedCloud.map(p => p.id));
         const localOnly = candidates.filter(p => !cloudIds.has(p.id));
-        if (localOnly.length) {
-          if (confirm(`這台裝置有 ${localOnly.length} 個案件還沒在雲端：\n${describe(localOnly)}\n\n要一起上傳，和團隊共用嗎？\n（選「取消」只顯示雲端資料，原資料另存在這台裝置）`)) {
-            next.projects = [...next.projects.filter(meaningful), ...localOnly];
-            next.vendorBook = app.M.buildVendorBook(next.projects, [...next.vendorBook, ...extraBook]);
-            if (!next.projects.some(p => p.id === next.activeProjectId)) next.activeProjectId = localOnly.some(p => p.id === local.activeProjectId) ? local.activeProjectId : next.projects[0].id;
-            clearLocalCopy();
-          } else declined();
+        added += localOnly.length;
+        if (added) {
+          let projects = [...mergedCloud, ...localOnly];
+          if (projects.some(meaningful)) projects = projects.filter(meaningful);
+          next.projects = projects;
+          next.vendorBook = app.M.buildVendorBook(projects, [...next.vendorBook, ...extraBook]);
+          if (!projects.some(p => p.id === next.activeProjectId)) next.activeProjectId = projects.some(p => p.id === local.activeProjectId) ? local.activeProjectId : projects[0].id;
+          clearLocalCopy();
         }
         app.replaceWorkspace(next, { initial: true });
         setMode('synced');
         schedule(); // 上傳合併進來的案件，或格式整理後的小差異
+        if (added) app.toast(`已把這台裝置的 ${added} 個案件合併上傳到雲端`);
       }
       subscribe();
     } catch (error) { console.error(error); setMode('error', error); }
