@@ -177,7 +177,21 @@
         data.vendors.forEach(r => synced.set(keyOf('vendors', r), stable(clean(r))));
         data.book.forEach(r => synced.set(keyOf('vendor_book', r), stable({ key: r.key, profile: r.profile })));
         const liveVendors = data.vendors.filter(v => data.projects.some(p => p.id === v.project_id));
-        app.replaceWorkspace(workspaceFromRows(data.projects, liveVendors, data.book, local.activeProjectId), { initial: true });
+        const next = workspaceFromRows(data.projects, liveVendors, data.book, local.activeProjectId);
+        // 合併：這台裝置上「雲端還沒有」的案件，詢問後一起上傳；雲端只有空白案件時順手移除
+        const meaningful = entry => entry.vendors.length > 0 || entry.project.name.trim() !== '' || Object.values(entry.project.stages || {}).some(Boolean);
+        const cloudIds = new Set(next.projects.map(p => p.id));
+        const localOnly = local.projects.filter(p => !cloudIds.has(p.id) && meaningful(p));
+        if (localOnly.length) {
+          const vendorCount = localOnly.reduce((t, p) => t + p.vendors.length, 0);
+          const names = localOnly.slice(0, 5).map(p => '・' + (p.project.name.trim() || '未命名案件')).join('\n') + (localOnly.length > 5 ? `\n…等 ${localOnly.length} 個` : '');
+          if (confirm(`這台裝置有 ${localOnly.length} 個案件（${vendorCount} 間廠商）還沒在雲端：\n${names}\n\n要一起上傳，和團隊共用嗎？\n（選「取消」只顯示雲端資料，這台裝置的原資料會另存備份）`)) {
+            next.projects = [...next.projects.filter(meaningful), ...localOnly];
+            next.vendorBook = app.M.buildVendorBook(next.projects, [...next.vendorBook, ...(local.vendorBook || [])]);
+            if (!next.projects.some(p => p.id === next.activeProjectId)) next.activeProjectId = local.projects.some(p => p.id === local.activeProjectId && localOnly.includes(p)) ? local.activeProjectId : next.projects[0].id;
+          }
+        }
+        app.replaceWorkspace(next, { initial: true });
         setMode('synced');
         schedule(); // 若資料經過格式整理而與雲端略有差異，順手補上傳
       }
