@@ -562,7 +562,16 @@
     const file = event.target.files[0]; if (!file) return;
     try {
       if (file.size > 10 * 1024 * 1024) throw new Error('備份檔案過大，請使用小於 10 MB 的檔案。');
-      const raw = JSON.parse(await file.text()), incoming = M.validateWorkspace(raw);
+      const raw = JSON.parse(await file.text());
+      if (M.isInquiryChecklist(raw)) {
+        const added = M.mergeLegacyProjects(workspace, M.fromInquiryChecklist(raw));
+        if (!added) { toast('這份舊版備份的案件都已經在這裡了'); return; }
+        state = M.currentProject(workspace);
+        bulkUndo.clear(); blockedStorage = false; resetView(); syncProjectInputs();
+        const stored = save(); render(); toast(stored ? `舊版詢價確認表備份已匯入 ${added} 個案件，原有案件保留` : '備份已匯入，此瀏覽器目前無法儲存');
+        return;
+      }
+      const incoming = M.validateWorkspace(raw);
       if (raw.version === 1) {
         const old = incoming.projects[0];
         state = M.addProject(workspace, { ...old.project, name: old.project.name.trim() || '匯入的案件' }, uid());
@@ -598,6 +607,16 @@
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshIfNewDay(); });
   setInterval(refreshIfNewDay, 60000);
+  // 一次性：把舊版「詢價確認表」（同網域 inquiry-checklist）存在這個瀏覽器的案件搬進來
+  const INQUIRY_KEY = 'inquiry-checklist-v1', INQUIRY_DONE = 'tender-quote-checklist-imported-inquiry';
+  try {
+    const oldRaw = !blockedStorage && !localStorage.getItem(INQUIRY_DONE) ? localStorage.getItem(INQUIRY_KEY) : null;
+    if (oldRaw) {
+      const added = M.mergeLegacyProjects(workspace, M.fromInquiryChecklist(JSON.parse(oldRaw)));
+      localStorage.setItem(INQUIRY_DONE, M.today());
+      if (added) { state = M.currentProject(workspace); syncProjectInputs(); migrateOnLoad = true; setTimeout(() => toast(`已從舊版詢價確認表搬入 ${added} 個案件`), 300); }
+    }
+  } catch (error) { /* 舊資料讀不到時略過，不影響本版資料 */ }
   render();
   if (migrateOnLoad) save();
 

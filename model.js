@@ -286,6 +286,45 @@
     };
   }
   const duplicateVendor = (project, name, exceptId = '') => project.vendors.find(v => v.id !== exceptId && vendorNameKey(v.name) === vendorNameKey(name));
-  root.QuoteTracker = { steps, today, validDate, addDays, due, complete, overdue, progress, pendingFill, attention, blankDates, normalizeCategory, categoryName, categoryKey, categoryTone, groupVendors, projectTitle, validateState, workspaceFromLegacy, emptyWorkspace, validateWorkspace, currentProject, selectProject, addProject, completeProject, undoProjectCompletion, vendorNameKey, vendorProfile, buildVendorBook, rememberVendor, searchVendorBook, findRememberedVendor, removeProject, restoreProject, copyVendorList, daysBetween, deadlineInfo, duplicateVendor, projectStages, categorySteps, categoryPrep, prepDone, toggleCategoryStep, toggleStage, projectSummary, awaitingQuote, cleanWarranty, validTime };
+  // 舊版「詢價確認表」（inquiry-checklist）的資料轉成本版案件。
+  // 舊版五步驟：寄出詢價信、電話確認收到、期限內追蹤、收到報價、回填總表
+  // → 寄出 Email、電話提醒（電話確認或追蹤任一有日期）、收到報價；回填總表日期寫進備註。
+  const isInquiryChecklist = input => Boolean(input && (input.app === 'inquiry-checklist' || (Array.isArray(input.cases) && input.version !== 2)));
+  function fromInquiryChecklist(input) {
+    const cases = Array.isArray(input) ? input : Array.isArray(input?.cases) ? input.cases : [];
+    const safeId = (prefix, value, used) => {
+      let id = prefix + String(value || '').replace(/[^\w-]/g, '').slice(0, 80);
+      if (id === prefix || used.has(id)) id = prefix + Math.random().toString(36).slice(2, 10);
+      used.add(id); return id;
+    };
+    const str = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+    const day = value => validDate(value) ? value : '';
+    const projectIds = new Set();
+    return cases.slice(0, 200).filter(c => c && typeof c === 'object').map(c => {
+      const vendorIds = new Set();
+      const vendors = (Array.isArray(c.vendors) ? c.vendors : []).filter(v => v && typeof v.name === 'string' && v.name.trim()).slice(0, 5000).map(v => {
+        const s = Array.isArray(v.steps) ? v.steps : [];
+        let note = str(v.notes, 1900);
+        if (day(s[4])) note = (note ? note + '\n' : '') + `（舊版紀錄：${day(s[4])} 已回填總表）`;
+        return { id: safeId('ic-', v.id, vendorIds), name: v.name.trim().slice(0, 160), category: normalizeCategory(str(v.category, 300)), contact: str(v.contact, 100), phone: str(v.phone, 80), email: str(v.email, 200), note, noQuote: Boolean(v.noQuote), dates: { sent: day(s[0]), called: day(s[1]) || day(s[2]), received: day(s[3]) } };
+      });
+      const days = Math.min(30, Math.max(1, parseInt(c.followDays, 10) || 3));
+      const clean = validateState({ version: 1, project: { name: str(c.name, 160).trim() || '舊版匯入的案件', deadline: day(c.deadline), days }, vendors });
+      return { id: safeId('ic-', c.id, projectIds), project: clean.project, vendors: clean.vendors };
+    });
+  }
+  // 把舊版案件加進工作區：同編號的案件不重複加入；工作區只有一個空白案件時直接取代它。
+  function mergeLegacyProjects(workspace, entries) {
+    const blank = workspace.projects.length === 1 && !workspace.projects[0].vendors.length && !workspace.projects[0].project.name.trim();
+    const fresh = entries.filter(entry => !workspace.projects.some(p => p.id === entry.id));
+    if (!fresh.length) return 0;
+    if (blank) workspace.projects = [];
+    const added = fresh.slice(0, Math.max(0, 200 - workspace.projects.length));
+    workspace.projects.push(...added);
+    if (blank || !workspace.projects.some(p => p.id === workspace.activeProjectId)) workspace.activeProjectId = workspace.projects[0].id;
+    workspace.vendorBook = buildVendorBook(workspace.projects, workspace.vendorBook);
+    return added.length;
+  }
+  root.QuoteTracker = { isInquiryChecklist, fromInquiryChecklist, mergeLegacyProjects, steps, today, validDate, addDays, due, complete, overdue, progress, pendingFill, attention, blankDates, normalizeCategory, categoryName, categoryKey, categoryTone, groupVendors, projectTitle, validateState, workspaceFromLegacy, emptyWorkspace, validateWorkspace, currentProject, selectProject, addProject, completeProject, undoProjectCompletion, vendorNameKey, vendorProfile, buildVendorBook, rememberVendor, searchVendorBook, findRememberedVendor, removeProject, restoreProject, copyVendorList, daysBetween, deadlineInfo, duplicateVendor, projectStages, categorySteps, categoryPrep, prepDone, toggleCategoryStep, toggleStage, projectSummary, awaitingQuote, cleanWarranty, validTime };
   if (typeof module !== 'undefined') module.exports = root.QuoteTracker;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
